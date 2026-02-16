@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 
-# Editor directories and files
+ # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dictionary data files (too large for git)
+dict/

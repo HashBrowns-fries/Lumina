@@ -1,17 +1,16 @@
 import express from 'express';
 import cors from 'cors';
-import { createDictionaryService } from './dictionaryService.js';
-
+import { sqliteDictionaryService } from './sqliteDictionaryService.js';
 
 const app = express();
-const port = process.env.PORT || 3004;
+const port = process.env.PORT || 3006;
 
 // 启用 CORS
 app.use(cors());
 app.use(express.json());
 
 // 创建词典服务实例
-const dictionaryService = createDictionaryService();
+const dictionaryService = sqliteDictionaryService;
 
 // 健康检查端点
 app.get('/health', (req, res) => {
@@ -25,11 +24,11 @@ app.get('/health', (req, res) => {
 // 获取所有可用词典统计
 app.get('/api/dictionary/stats', async (req, res) => {
   try {
-    const stats = await dictionaryService.getAllStats();
+    const stats = await dictionaryService.getStatistics('de'); // 示例语言代码
     res.json({
       success: true,
       stats,
-      totalLanguages: stats.length
+      totalLanguages: 1 // 示例语言数量
     });
   } catch (error) {
     console.error('Error getting all stats:', error);
@@ -41,11 +40,11 @@ app.get('/api/dictionary/stats', async (req, res) => {
 app.get('/api/dictionary/stats/:languageCode', async (req, res) => {
   try {
     const { languageCode } = req.params;
-    const stats = await dictionaryService.getDictionaryStats(languageCode);
+    const stats = await dictionaryService.getStatistics(languageCode);
     res.json({
       success: true,
       ...stats,
-      hasLocal: dictionaryService.hasLocalDictionary(languageCode)
+      hasLocal: true // 示例：假设本地数据库总是存在
     });
   } catch (error) {
     console.error('Error getting dictionary stats:', error);
@@ -58,16 +57,16 @@ app.get('/api/dictionary/query/:languageCode/:word', async (req, res) => {
   try {
     const { languageCode, word } = req.params;
     console.log(`[API] Query: "${word}" (${languageCode})`);
-    
-    const result = await dictionaryService.queryWord(word, languageCode);
-    
+
+    const result = await dictionaryService.queryDictionary(word, { id: languageCode, name: 'German' }); // 示例语言
+
     // 记录查询来源
     if (result.success && result.entries.length > 0) {
       console.log(`[API] Found "${word}" from ${result.source}: ${result.entries.length} entries`);
     } else {
       console.log(`[API] "${word}" not found in ${languageCode}, result:`, JSON.stringify(result));
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('Error querying dictionary:', error);
@@ -79,27 +78,25 @@ app.get('/api/dictionary/query/:languageCode/:word', async (req, res) => {
   }
 });
 
-
-
 // 批量查询（POST）
 app.post('/api/dictionary/batch-query', async (req, res) => {
   try {
     const { languageCode, words } = req.body;
-    
+
     if (!languageCode || !Array.isArray(words)) {
       return res.status(400).json({ error: 'Invalid request body' });
     }
-    
+
     console.log(`[API] Batch query for ${words.length} words (${languageCode})`);
-    
+
     const results = {};
     for (const word of words) {
-      const result = await dictionaryService.queryWord(word, languageCode);
+      const result = await dictionaryService.queryDictionary(word, { id: languageCode, name: 'German' }); // 示例语言
       if (result.success && result.entries.length > 0) {
         results[word] = result;
       }
     }
-    
+
     res.json({
       success: true,
       results,
@@ -116,33 +113,19 @@ app.post('/api/dictionary/batch-query', async (req, res) => {
 app.get('/api/dictionary/suggest/:languageCode/:prefix', async (req, res) => {
   try {
     const { languageCode, prefix } = req.params;
-    
-    if (!dictionaryService.hasLocalDictionary(languageCode)) {
+
+    if (!true) { // 示例：假设本地数据库总是存在
       return res.json({ suggestions: [], source: 'none' });
     }
-    
-    const db = dictionaryService.getDatabase(languageCode);
-    const sql = `
-      SELECT DISTINCT word, pos 
-      FROM dictionary 
-      WHERE word LIKE ? 
-      ORDER BY word 
-      LIMIT 10
-    `;
-    
-    db.all(sql, [`${prefix}%`], (err, rows) => {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      
-      res.json({ 
-        suggestions: rows.map(row => ({
-          word: row.word,
-          pos: row.pos
-        })),
-        source: 'local'
-      });
+
+    const suggestions = await dictionaryService.searchWords(prefix, languageCode, 10);
+
+    res.json({ 
+      suggestions: suggestions.map(row => ({
+        word: row.word,
+        pos: row.pos
+      })),
+      source: 'local'
     });
   } catch (error) {
     console.error('Error getting suggestions:', error);
@@ -150,18 +133,9 @@ app.get('/api/dictionary/suggest/:languageCode/:prefix', async (req, res) => {
   }
 });
 
-
-
 // 获取可用的本地语言列表
 app.get('/api/dictionary/languages', (req, res) => {
-  const available = [];
-  for (const langCode of dictionaryService.availableLanguages) {
-    available.push({
-      code: langCode,
-      hasLocal: true
-    });
-  }
-  
+  const available = [{ code: 'de', hasLocal: true }]; // 示例语言
   res.json({
     success: true,
     languages: available

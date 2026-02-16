@@ -59,7 +59,7 @@ const BACKEND_API_URL = (() => {
   }
   
   // 默认值
-  return 'http://localhost:3004';
+  return 'http://localhost:3006';
 })();
 
 export interface WiktionaryEntry {

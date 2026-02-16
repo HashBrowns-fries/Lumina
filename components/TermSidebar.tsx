@@ -160,24 +160,16 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
     const word = entry.word;
     const pos = entry.partOfSpeech || '';
     const entryType = entry.entryType;
-    const isInflection = entry.isInflection;
     
-    // 如果是变体形式
     if (entryType === 'variant' && entry.rootWord && entry.rootWord.toLowerCase() !== word.toLowerCase()) {
-      return `${word} (${pos} inflection of ${entry.rootWord})`;
+      const inflectionType = entry.inflectionAnalysis?.inflectionType || 'inflection';
+      return `${word} (${pos} · ${inflectionType})`;
     }
     
-    // 如果是原形形式，但有关联的变体
-    if (entryType === 'root' && entry.variantOf) {
-      return `${word} (${pos} - root form)`;
+    if (entryType === 'root') {
+      return `${word} (${pos} · root)`;
     }
     
-    // 如果是普通形式但有词形变化信息
-    if (entry.selfInflectionAnalysis) {
-      return `${word} (${pos} - base form with inflections)`;
-    }
-    
-    // 默认情况
     return `${word} (${pos})`;
   };
   
@@ -185,9 +177,7 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
   const getPosDisplayText = (entry: WiktionaryEntry): string => {
     const pos = entry.partOfSpeech || '';
     const entryType = entry.entryType;
-    const isInflection = entry.isInflection;
     
-    // 如果是变体形式
     if (entryType === 'variant') {
       if (entry.inflectionAnalysis?.inflectionType) {
         const inflectionType = entry.inflectionAnalysis.inflectionType;
@@ -196,251 +186,230 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
       return `${pos} · inflection`;
     }
     
-    // 如果是原形形式
     if (entryType === 'root') {
       return `${pos} · root`;
     }
     
-    // 普通形式
     return pos;
   };
   
-  return (
+  // 格式化定义显示 - 简洁显示
+  const formatDefinitions = (definitions: string[]): string => {
+    if (definitions.length === 0) return '';
+    
+    // 如果是单个简短定义，直接返回
+    if (definitions.length === 1 && definitions[0].length < 100) {
+      return definitions[0].replace(/^\d+\.\s*/, '');
+    }
+    
+    // 多个简短定义，用分号连接
+    if (definitions.every(def => def.length < 60)) {
+      return definitions.map(def => def.replace(/^\d+\.\s*/, '')).join('; ');
+    }
+    
+    // 返回第一个定义（如果需要显示更多，用户可点击展开）
+    return definitions[0].replace(/^\d+\.\s*/, '');
+  };
+  
+   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      {/* Header with word and part of speech */}
-      <div className="p-4 border-b border-slate-100">
-        <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-lg font-bold text-slate-900">{entry.word}</h3>
+      <div className="p-4">
+        {/* 标题行 - 单词和词性 */}
+        <div className="flex flex-wrap items-start gap-2 mb-2">
+          <h3 className="text-lg font-bold text-slate-900 flex-1">{entry.word}</h3>
           {entry.partOfSpeech && (
-            <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${getPosColor(entry.partOfSpeech)}`}>
+            <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${getPosColor(entry.partOfSpeech)} shrink-0`}>
               {getPosDisplayText(entry)}
             </span>
           )}
+        </div>
+        
+        {/* 关系指示器 - 紧凑显示 */}
+        <div className="mb-3 space-y-1">
+          {/* 变体形式显示根形式 */}
+          {entry.entryType === 'variant' && entry.rootWord && entry.rootWord.toLowerCase() !== entry.word.toLowerCase() && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-indigo-400 font-bold">→</span>
+              <span className="text-indigo-500 font-medium">Root form: </span>
+              <span className="text-indigo-600 font-bold">{entry.rootWord}</span>
+            </div>
+          )}
+          
+          {/* 词根形式显示变体 */}
+          {entry.entryType === 'root' && entry.variantOf && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-emerald-400 font-bold">↳</span>
+              <span className="text-emerald-500 font-medium">Variant: </span>
+              <span className="text-emerald-600 font-bold">{entry.variantOf}</span>
+            </div>
+          )}
+          
+          {/* 发音信息 */}
           {entry.pronunciation && (
-            <span className="text-sm text-slate-500 font-mono">/{entry.pronunciation}/</span>
+            <div className="text-xs text-slate-500 font-mono">/{entry.pronunciation}/</div>
           )}
         </div>
-        {/* 显示更多信息，如词形变化分析 */}
-        {entry.inflectionAnalysis?.description && (
+        
+        {/* 定义 - 简洁显示 */}
+        {entry.definitions.length > 0 && (
           <div className="mt-2">
+            <div className="text-sm text-slate-700 leading-relaxed">
+              {(() => {
+                const definitionsToShow = entry.definitions.slice(0, showAllDefinitions ? entry.definitions.length : 3);
+                
+                // 如果只有一个定义或定义都很短，合并显示
+                if (definitionsToShow.length <= 3 && definitionsToShow.every(def => def.length < 60)) {
+                  return (
+                    <div>
+                      {definitionsToShow.map((def, idx) => {
+                        const cleanedDef = def.replace(/^\d+\.\s*/, ''); // 移除开头的数字编号
+                        const isLast = idx === definitionsToShow.length - 1;
+                        return (
+                          <span key={idx}>
+                            {cleanedDef}
+                            {!isLast && '; '}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                
+                // 否则显示为列表
+                return (
+                  <div className="space-y-1">
+                    {definitionsToShow.map((def, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        <span className="text-xs font-bold text-slate-400 mt-0.5 shrink-0">{idx + 1}.</span>
+                        <span className="flex-1">{def}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            
+            {entry.definitions.length > 3 && (
+              <button
+                onClick={(e) => { e.preventDefault(); setShowAllDefinitions(!showAllDefinitions); }}
+                className="text-xs font-bold text-indigo-500 hover:text-indigo-700 mt-2"
+              >
+                {showAllDefinitions ? 'Show less' : `Show ${entry.definitions.length - 3} more definitions`}
+              </button>
+            )}
+          </div>
+        )}
+        
+        {/* 词形变化分析描述 */}
+        {entry.inflectionAnalysis?.description && (
+          <div className="mt-2 pt-2 border-t border-slate-100">
             <p className="text-xs text-slate-500 font-medium">{entry.inflectionAnalysis.description}</p>
           </div>
         )}
-        {/* 词条关系指示器 */}
-        {entry.entryType === 'variant' && entry.rootWord && entry.rootWord.toLowerCase() !== entry.word.toLowerCase() && (
-          <div className="mt-2 flex items-center gap-1 text-xs">
-            <span className="text-indigo-400">→</span>
-            <span className="text-indigo-500 font-medium">Root form: </span>
-            <span className="text-indigo-600 font-bold">{entry.rootWord}</span>
-          </div>
-        )}
-        {entry.entryType === 'root' && entry.variantOf && (
-          <div className="mt-2 flex items-center gap-1 text-xs">
-            <span className="text-emerald-400">↳</span>
-            <span className="text-emerald-500 font-medium">Variant: </span>
-            <span className="text-emerald-600 font-bold">{entry.variantOf}</span>
-          </div>
-        )}
-      </div>
-      
-      {/* Definitions */}
-      <div className="p-4 border-b border-slate-100">
-        <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Definitions</h4>
-        <div className="space-y-3">
-          {entry.definitions.slice(0, showAllDefinitions ? entry.definitions.length : 3).map((def, idx) => (
-            <div key={idx} className="flex items-start gap-2">
-              <span className="text-xs font-bold text-slate-400 mt-0.5 shrink-0">{idx + 1}.</span>
-              <p className="text-sm text-slate-700 leading-relaxed flex-1">{def}</p>
-            </div>
-          ))}
-          {entry.definitions.length > 3 && (
-             <button
-               onClick={(e) => { e.preventDefault(); setShowAllDefinitions(!showAllDefinitions); }}
-               className="text-xs font-bold text-indigo-500 hover:text-indigo-700"
-             >
-              {showAllDefinitions ? 'Show less' : `Show ${entry.definitions.length - 3} more definitions`}
-            </button>
-          )}
-        </div>
-       </div>
-       
-       {/* Inflection Analysis (collapsible) */}
-       {(entry.inflectionAnalysis || entry.selfInflectionAnalysis) && (
-         <div className="border-b border-slate-100">
+        
+        {/* 详细词形变化分析（可折叠） */}
+        {(entry.inflectionAnalysis || entry.selfInflectionAnalysis) && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
             <button
               onClick={(e) => { e.preventDefault(); setShowInflectionAnalysis(!showInflectionAnalysis); }}
-              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider"
             >
-             <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Inflection Analysis</h4>
-             <span className="text-slate-400">
-               {showInflectionAnalysis ? '−' : '+'}
-             </span>
-           </button>
-           {showInflectionAnalysis && (
-             <div className="px-4 pb-4">
-               <div className="space-y-2">
-                 {entry.inflectionAnalysis && (
-                   <>
-                      <div className="space-y-1">
-                        <div className="text-xs font-bold text-slate-500 mb-1">Type:</div>
-                        <div className="pl-4">
-                          {(() => {
-                            const typeStr = entry.inflectionAnalysis.inflectionType || 'inflection';
-                            if (typeStr.includes(',')) {
-                              const types = typeStr.split(',').map(t => t.trim()).filter(t => t);
-                              return (
-                                <div className="flex flex-wrap gap-1">
-                                  {types.map((t, i) => (
-                                    <span key={i} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">
-                                      {t}
-                                    </span>
-                                  ))}
-                                </div>
-                              );
-                            } else {
-                              return <span className="text-sm text-slate-700">{typeStr}</span>;
-                            }
-                          })()}
-                        </div>
+              <span>Inflection Details</span>
+              <span className="text-slate-400">{showInflectionAnalysis ? '−' : '+'}</span>
+            </button>
+            {showInflectionAnalysis && (
+              <div className="mt-2 space-y-2">
+                {entry.inflectionAnalysis && (
+                  <>
+                    {entry.inflectionAnalysis.inflectionType && (
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-500">Type: </span>
+                        <span className="text-slate-700">{entry.inflectionAnalysis.inflectionType}</span>
                       </div>
-                      {entry.inflectionAnalysis.grammar && Object.keys(entry.inflectionAnalysis.grammar).length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-xs font-bold text-slate-500 mb-1">Grammar:</div>
-                          <div className="pl-4 space-y-1">
-                            {(() => {
-                              const grammar = entry.inflectionAnalysis.grammar;
-                              const items = [];
-                              // Format each grammar category clearly
-                              const formatValue = (val: any) => Array.isArray(val) ? val.join(', ') : String(val);
-                              
-                              if (grammar.gender && (Array.isArray(grammar.gender) ? grammar.gender.length > 0 : grammar.gender)) {
-                                items.push(<div key="gender" className="flex"><span className="w-20 text-xs text-slate-500">Gender:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.gender)}</span></div>);
-                              }
-                              if (grammar.number && (Array.isArray(grammar.number) ? grammar.number.length > 0 : grammar.number)) {
-                                items.push(<div key="number" className="flex"><span className="w-20 text-xs text-slate-500">Number:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.number)}</span></div>);
-                              }
-                              if (grammar.case && (Array.isArray(grammar.case) ? grammar.case.length > 0 : grammar.case)) {
-                                items.push(<div key="case" className="flex"><span className="w-20 text-xs text-slate-500">Case:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.case)}</span></div>);
-                              }
-                              if (grammar.tense && (Array.isArray(grammar.tense) ? grammar.tense.length > 0 : grammar.tense)) {
-                                items.push(<div key="tense" className="flex"><span className="w-20 text-xs text-slate-500">Tense:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.tense)}</span></div>);
-                              }
-                              if (grammar.mood && (Array.isArray(grammar.mood) ? grammar.mood.length > 0 : grammar.mood)) {
-                                items.push(<div key="mood" className="flex"><span className="w-20 text-xs text-slate-500">Mood:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.mood)}</span></div>);
-                              }
-                              if (grammar.person && (Array.isArray(grammar.person) ? grammar.person.length > 0 : grammar.person)) {
-                                items.push(<div key="person" className="flex"><span className="w-20 text-xs text-slate-500">Person:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.person)}</span></div>);
-                              }
-                              if (grammar.voice && (Array.isArray(grammar.voice) ? grammar.voice.length > 0 : grammar.voice)) {
-                                items.push(<div key="voice" className="flex"><span className="w-20 text-xs text-slate-500">Voice:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.voice)}</span></div>);
-                              }
-                              if (grammar.degree && (Array.isArray(grammar.degree) ? grammar.degree.length > 0 : grammar.degree)) {
-                                items.push(<div key="degree" className="flex"><span className="w-20 text-xs text-slate-500">Degree:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.degree)}</span></div>);
-                              }
-                              if (grammar.style && (Array.isArray(grammar.style) ? grammar.style.length > 0 : grammar.style)) {
-                                items.push(<div key="style" className="flex"><span className="w-20 text-xs text-slate-500">Style:</span><span className="flex-1 text-sm text-slate-700">{formatValue(grammar.style)}</span></div>);
-                              }
-                              // Handle other properties
-                              for (const [key, value] of Object.entries(grammar)) {
-                                if (['gender', 'number', 'case', 'tense', 'mood', 'person', 'voice', 'degree', 'style'].includes(key)) continue;
-                                if (value !== null && value !== undefined && (!Array.isArray(value) || value.length > 0)) {
-                                  items.push(<div key={key} className="flex"><span className="w-20 text-xs text-slate-500">{key.charAt(0).toUpperCase() + key.slice(1)}:</span><span className="flex-1 text-sm text-slate-700">{formatValue(value)}</span></div>);
-                                }
-                              }
-                              return items;
-                            })()}
-                          </div>
-                        </div>
-                      )}
-                     {entry.inflectionAnalysis.description && (
-                       <div className="flex">
-                         <span className="w-24 text-xs font-bold text-slate-500">Description:</span>
-                         <span className="flex-1 text-sm text-slate-700">{entry.inflectionAnalysis.description}</span>
-                       </div>
-                     )}
-                   </>
-                 )}
-                 {entry.selfInflectionAnalysis && (
-                   <>
-                     <div className="mt-2 pt-2 border-t border-slate-200">
-                       <div className="flex">
-                         <span className="w-24 text-xs font-bold text-slate-500">Self Analysis:</span>
-                         <span className="flex-1 text-sm text-slate-700">{entry.selfInflectionAnalysis.description || 'Has inflection forms'}</span>
-                       </div>
-                     </div>
-                   </>
-                 )}
-               </div>
-             </div>
-           )}
-         </div>
-       )}
-       
-       {/* Etymology (collapsible) */}
-       {entry.etymology && (
-         <div className="border-b border-slate-100">
+                    )}
+                    {entry.inflectionAnalysis.grammar && Object.keys(entry.inflectionAnalysis.grammar).length > 0 && (
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-500">Grammar: </span>
+                        <span className="text-slate-700">
+                          {Object.entries(entry.inflectionAnalysis.grammar)
+                            .filter(([_, value]) => value !== null && value !== undefined && (!Array.isArray(value) || value.length > 0))
+                            .map(([key, value]) => {
+                              const formattedValue = Array.isArray(value) ? value.join(', ') : String(value);
+                              return `${key}: ${formattedValue}`;
+                            })
+                            .join('; ')}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* 词源（可折叠） */}
+        {entry.etymology && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
             <button
               onClick={(e) => { e.preventDefault(); setShowEtymology(!showEtymology); }}
-              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider"
             >
-             <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Etymology</h4>
-             <span className="text-slate-400">
-               {showEtymology ? '−' : '+'}
-             </span>
-           </button>
-           {showEtymology && (
-             <div className="px-4 pb-4">
-               <p className="text-sm text-slate-600 leading-relaxed font-mono">{entry.etymology}</p>
-             </div>
-           )}
-         </div>
-       )}
-      
-      {/* Examples */}
-      {entry.examples && entry.examples.length > 0 && (
-        <div className="p-4 border-b border-slate-100">
-          <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Examples</h4>
-          <div className="space-y-2">
-            {entry.examples.slice(0, 3).map((example, idx) => (
-              <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <p className="text-sm text-slate-600 leading-relaxed italic">"{example}"</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Synonyms & Antonyms */}
-      {(entry.synonyms && entry.synonyms.length > 0) || (entry.antonyms && entry.antonyms.length > 0) ? (
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-4">
-            {entry.synonyms && entry.synonyms.length > 0 && (
-              <div>
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Synonyms</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {entry.synonyms.slice(0, 5).map((syn, idx) => (
-                    <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100">
-                      {syn}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {entry.antonyms && entry.antonyms.length > 0 && (
-              <div>
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Antonyms</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {entry.antonyms.slice(0, 5).map((ant, idx) => (
-                    <span key={idx} className="text-xs bg-rose-50 text-rose-700 px-2 py-1 rounded border border-rose-100">
-                      {ant}
-                    </span>
-                  ))}
-                </div>
+              <span>Etymology</span>
+              <span className="text-slate-400">{showEtymology ? '−' : '+'}</span>
+            </button>
+            {showEtymology && (
+              <div className="mt-2">
+                <p className="text-xs text-slate-600 leading-relaxed font-mono">{entry.etymology}</p>
               </div>
             )}
           </div>
-        </div>
-      ) : null}
+        )}
+        
+        {/* 示例 */}
+        {entry.examples && entry.examples.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Examples</h4>
+            <div className="space-y-1">
+              {entry.examples.slice(0, 2).map((example, idx) => (
+                <div key={idx} className="text-xs text-slate-600 italic">"{example}"</div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* 同义词和反义词 */}
+        {(entry.synonyms && entry.synonyms.length > 0) || (entry.antonyms && entry.antonyms.length > 0) ? (
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <div className="flex flex-col gap-2">
+              {entry.synonyms && entry.synonyms.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Synonyms</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {entry.synonyms.slice(0, 3).map((syn, idx) => (
+                      <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                        {syn}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {entry.antonyms && entry.antonyms.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Antonyms</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {entry.antonyms.slice(0, 3).map((ant, idx) => (
+                      <span key={idx} className="text-xs bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100">
+                        {ant}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -490,10 +459,56 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     ...existingTerm
   });
   
-  const [wiktionaryData, setWiktionaryData] = useState<WiktionaryEntry[] | null>(null);
+   const [wiktionaryData, setWiktionaryData] = useState<WiktionaryEntry[] | null>(null);
   const [isLoadingWiktionary, setIsLoadingWiktionary] = useState(false);
   const [partOfSpeechFilter, setPartOfSpeechFilter] = useState<string>('all');
   const [showAllDictionaryEntries, setShowAllDictionaryEntries] = useState(false);
+  const [expandedPosGroups, setExpandedPosGroups] = useState<Set<string>>(new Set());
+  
+  // 过滤按钮颜色映射
+  const filterButtonColors: Record<string, string> = {
+    'all': 'bg-indigo-100 text-indigo-700 border-indigo-300',
+    'verb': 'bg-emerald-100 text-emerald-700 border-emerald-300',
+    'noun': 'bg-blue-100 text-blue-700 border-blue-300',
+    'adjective': 'bg-amber-100 text-amber-700 border-amber-300',
+    'adverb': 'bg-purple-100 text-purple-700 border-purple-300',
+    'other': 'bg-slate-100 text-slate-700 border-slate-300'
+  };
+  
+   // 过滤文本颜色映射
+  const filterTextColors: Record<string, string> = {
+    'all': 'text-indigo-600',
+    'verb': 'text-emerald-600',
+    'noun': 'text-blue-600',
+    'adjective': 'text-amber-600',
+    'adverb': 'text-purple-600',
+    'other': 'text-slate-600'
+  };
+  
+  // 词性标签颜色映射 (用于分组标题)
+  const posColors: Record<string, string> = {
+    'noun': 'bg-blue-50 text-blue-700 border-blue-200',
+    'verb': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'adj': 'bg-amber-50 text-amber-700 border-amber-200',
+    'adjective': 'bg-amber-50 text-amber-700 border-amber-200',
+    'adv': 'bg-purple-50 text-purple-700 border-purple-200',
+    'adverb': 'bg-purple-50 text-purple-700 border-purple-200',
+    'pron': 'bg-rose-50 text-rose-700 border-rose-200',
+    'preposition': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    'conjunction': 'bg-lime-50 text-lime-700 border-lime-200',
+    'interjection': 'bg-pink-50 text-pink-700 border-pink-200',
+    'article': 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  };
+  
+  const getPosColor = (pos: string = ''): string => {
+    const posKey = pos.toLowerCase();
+    for (const [key, color] of Object.entries(posColors)) {
+      if (posKey.includes(key)) {
+        return color;
+      }
+    }
+    return 'bg-slate-50 text-slate-700 border-slate-200';
+  };
   
   // Reset expanded state when word or filter changes
   useEffect(() => {
@@ -687,11 +702,11 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           
             // Update form data with Wiktionary definitions if no existing translation
             if (!existingTerm?.translation && result.entries.length > 0) {
-              // 对条目进行排序：variant在前，root其次，normal最后（与显示逻辑一致）
+              // 对条目进行排序：normal在前，root其次，variant最后（与显示逻辑一致）
               const sortedEntries = [...result.entries].sort((a, b) => {
                 const aType = a.entryType || 'normal';
                 const bType = b.entryType || 'normal';
-                const typeOrder = { 'variant': 1, 'root': 2, 'normal': 3 };
+                const typeOrder = { 'normal': 1, 'root': 2, 'variant': 3 };
                 return (typeOrder[aType] || 4) - (typeOrder[bType] || 4);
               });
               
@@ -1165,48 +1180,67 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
             </div>
           </div>
           
-          {/* Part of Speech Filter */}
-          <div className="flex flex-wrap gap-1.5">
-            {['all', 'verb', 'noun', 'adjective', 'adverb', 'other'].map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setPartOfSpeechFilter(filter)}
-                className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full border transition-all ${
-                  partOfSpeechFilter === filter
-                    ? filter === 'all' 
-                      ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
-                      : filter === 'verb'
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                      : filter === 'noun'
-                      ? 'bg-blue-100 text-blue-700 border-blue-300'
-                      : filter === 'adjective'
-                      ? 'bg-amber-100 text-amber-700 border-amber-300'
-                      : filter === 'adverb'
-                      ? 'bg-purple-100 text-purple-700 border-purple-300'
-                      : 'bg-slate-100 text-slate-700 border-slate-300'
-                    : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {filter === 'all' ? 'All' : 
-                 filter === 'verb' ? 'Verbs' :
-                 filter === 'noun' ? 'Nouns' :
-                 filter === 'adjective' ? 'Adjectives' :
-                 filter === 'adverb' ? 'Adverbs' : 'Other'}
-              </button>
-            ))}
-           </div>
+           {/* Part of Speech Filter */}
+           <div className="flex flex-wrap gap-1.5">
+             {['all', 'verb', 'noun', 'adjective', 'adverb', 'other'].map((filter) => (
+               <button
+                 key={filter}
+                 type="button"
+                 onClick={() => setPartOfSpeechFilter(filter)}
+                 className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full border transition-all ${
+                   partOfSpeechFilter === filter
+                     ? filterButtonColors[filter] || 'bg-slate-100 text-slate-700 border-slate-300'
+                     : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
+                 }`}
+               >
+                 {filter === 'all' ? 'All' : 
+                  filter === 'verb' ? 'Verbs' :
+                  filter === 'noun' ? 'Nouns' :
+                  filter === 'adjective' ? 'Adjectives' :
+                  filter === 'adverb' ? 'Adverbs' : 'Other'}
+               </button>
+             ))}
+            </div>
            
-            {/* Filter stats */}
-            {wiktionaryData && wiktionaryData.length > 0 && (() => {
-              const filteredEntries = wiktionaryData.filter(matchesPartOfSpeechFilter);
-              const displayedCount = showAllDictionaryEntries ? filteredEntries.length : Math.min(3, filteredEntries.length);
-              return (
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  Showing {displayedCount} of {filteredEntries.length} entries ({wiktionaryData.length} total)
-                </div>
-              );
-            })()}
+             {/* Filter stats */}
+             {wiktionaryData && wiktionaryData.length > 0 && (() => {
+               const filteredEntries = wiktionaryData.filter(matchesPartOfSpeechFilter);
+               // Group entries by part of speech
+               const entriesByPos = new Map<string, WiktionaryEntry[]>();
+               filteredEntries.forEach(entry => {
+                 const pos = entry.partOfSpeech || 'Unknown';
+                 if (!entriesByPos.has(pos)) {
+                   entriesByPos.set(pos, []);
+                 }
+                 entriesByPos.get(pos)!.push(entry);
+               });
+               const posGroups = Array.from(entriesByPos.entries());
+               const groupCount = posGroups.length;
+               const displayedGroupCount = showAllDictionaryEntries ? groupCount : Math.min(2, groupCount);
+               const textColor = filterTextColors[partOfSpeechFilter] || 'text-indigo-600';
+               const boldTextColor = textColor.replace('600', '700') || 'text-indigo-700';
+               
+               return (
+                 <div className="flex items-center justify-between">
+                   <div className="text-[10px] font-bold uppercase tracking-wider">
+                     <span className="text-slate-400">Showing </span>
+                     <span className={textColor}>{displayedGroupCount}</span>
+                     <span className="text-slate-400"> of </span>
+                     <span className={`${boldTextColor} font-black`}>{groupCount}</span>
+                     <span className="text-slate-400"> groups</span>
+                     <span className="text-slate-400"> ({filteredEntries.length} entries)</span>
+                     {partOfSpeechFilter !== 'all' && (
+                       <span className="text-slate-400 ml-1">({wiktionaryData.length} total entries)</span>
+                     )}
+                   </div>
+                   {partOfSpeechFilter !== 'all' && (
+                     <div className={`text-[8px] px-2 py-1 rounded-full ${filterButtonColors[partOfSpeechFilter] || 'bg-slate-100 text-slate-700 border-slate-300'}`}>
+                       {partOfSpeechFilter.toUpperCase()}
+                     </div>
+                   )}
+                 </div>
+               );
+             })()}
            
             {/* Dictionary Details */}
            {isLoadingWiktionary ? (
@@ -1215,49 +1249,107 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                <span className="text-xs text-slate-500">Loading dictionary data...</span>
              </div>
            ) : wiktionaryData && wiktionaryData.length > 0 ? (
-               <div className="space-y-4">
-                 {( () => {
-                   // Filter and sort entries
-                   const filteredEntries = wiktionaryData
-                     .filter(matchesPartOfSpeechFilter)
+                <div className="space-y-6">
+                  {( () => {
+                    // Filter and sort entries
+                    const filteredEntries = wiktionaryData
+                      .filter(matchesPartOfSpeechFilter)
                      .sort((a, b) => {
-                       const aType = a.entryType || 'normal';
-                       const bType = b.entryType || 'normal';
-                       const typeOrder = { 'variant': 1, 'root': 2, 'normal': 3 };
-                       return (typeOrder[aType] || 4) - (typeOrder[bType] || 4);
-                     });
-                   
-                    // Determine entries to display
-                    const displayCount = showAllDictionaryEntries ? filteredEntries.length : Math.min(3, filteredEntries.length);
-                   const displayedEntries = filteredEntries.slice(0, displayCount);
-                   
-                   return (
-                     <>
-                       {displayedEntries.map((entry, index) => (
-                         <div key={`${entry.word}-${entry.partOfSpeech || 'default'}-${index}`} className="relative">
-                           {/* Entry number */}
-                           <div className="absolute -left-2 -top-2 w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-md">
-                             {index + 1}
-                           </div>
-                           <DictionaryEntryDisplay entry={entry} />
-                         </div>
-                       ))}
-                        {filteredEntries.length > 3 && (
+                         const aType = a.entryType || 'normal';
+                         const bType = b.entryType || 'normal';
+                         const typeOrder = { 'normal': 1, 'root': 2, 'variant': 3 };
+                         return (typeOrder[aType] || 4) - (typeOrder[bType] || 4);
+                       });
+                    
+                    // Group entries by part of speech
+                    const entriesByPos = new Map<string, WiktionaryEntry[]>();
+                    filteredEntries.forEach(entry => {
+                      const pos = entry.partOfSpeech || 'Unknown';
+                      if (!entriesByPos.has(pos)) {
+                        entriesByPos.set(pos, []);
+                      }
+                      entriesByPos.get(pos)!.push(entry);
+                    });
+                    
+                    // Convert to array of groups and sort by group size (largest first)
+                    const posGroups = Array.from(entriesByPos.entries())
+                      .sort(([, entriesA], [, entriesB]) => entriesB.length - entriesA.length);
+                    
+                    // Determine groups to display (if not showing all, limit to top 2 groups)
+                    const groupDisplayCount = showAllDictionaryEntries ? posGroups.length : Math.min(2, posGroups.length);
+                    const displayedGroups = posGroups.slice(0, groupDisplayCount);
+                    
+                    return (
+                      <>
+                        {displayedGroups.map(([pos, entries], groupIndex) => {
+                          const isExpanded = expandedPosGroups.has(pos);
+                          const entriesToShow = isExpanded ? entries : entries.slice(0, 1); // Show 1 entry if collapsed
+                          const posColor = getPosColor(pos);
+                          const posDisplayName = pos === 'Unknown' ? 'Other' : pos;
+                          
+                          return (
+                            <div key={`${pos}-${groupIndex}`} className="space-y-3">
+                              {/* Group header */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${posColor}`}>
+                                    {posDisplayName}
+                                  </span>
+                                  <span className="text-xs text-slate-500 font-bold">
+                                    ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedPosGroups);
+                                    if (isExpanded) {
+                                      newExpanded.delete(pos);
+                                    } else {
+                                      newExpanded.add(pos);
+                                    }
+                                    setExpandedPosGroups(newExpanded);
+                                  }}
+                                  className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
+                                >
+                                  {isExpanded ? 'Show less' : 'Show all'}
+                                  <span className="text-indigo-400 font-bold">{isExpanded ? '−' : '+'}</span>
+                                </button>
+                              </div>
+                              
+                              {/* Group entries */}
+                              <div className="space-y-4">
+                                {entriesToShow.map((entry, entryIndex) => (
+                                  <div key={`${entry.word}-${entry.partOfSpeech || 'default'}-${entryIndex}`} className="relative">
+                                    {/* Entry number */}
+                                    <div className="absolute -left-2 -top-2 w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-md">
+                                      {entryIndex + 1}
+                                    </div>
+                                    <DictionaryEntryDisplay entry={entry} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Show more groups button */}
+                        {posGroups.length > 2 && (
                           <div className="pt-2 flex justify-center">
                             <button
                               type="button"
                               onClick={() => setShowAllDictionaryEntries(!showAllDictionaryEntries)}
                               className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:border-indigo-400 hover:bg-indigo-50 flex items-center gap-1.5 transition-all"
                             >
-                              {showAllDictionaryEntries ? 'Show fewer entries' : `Show ${filteredEntries.length - 3} more entries`}
+                              {showAllDictionaryEntries ? 'Show fewer groups' : `Show ${posGroups.length - 2} more groups`}
                               <span className="text-indigo-400 font-bold">{showAllDictionaryEntries ? '−' : '+'}</span>
                             </button>
                           </div>
                         )}
-                     </>
-                   );
-                 })()}
-              </div>
+                      </>
+                    );
+                  })()}
+               </div>
            ) : (
              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                <p className="text-xs text-slate-500 text-center">No dictionary data found</p>
