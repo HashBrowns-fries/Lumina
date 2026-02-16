@@ -1,0 +1,7 @@
+{
+  "name": "Luminous LUTE",
+  "description": "An advanced language learning platform inspired by LUTE, featuring LLM-powered term discovery, parent-word mapping, and AI image generation for an immersive reading experience.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

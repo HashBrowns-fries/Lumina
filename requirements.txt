@@ -1,0 +1,4 @@
+requests>=2.31.0
+
+# 用于测试 AI API 提供商的 Python 依赖
+# 安装: pip install -r requirements.txt

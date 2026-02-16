@@ -1,0 +1,1699 @@
+
+/**
+ * 浏览器端测试词典数据导入
+ */
+
+import { browserDictionaryService } from '../../services/browserDictionaryService';
+
+// 测试数据
+const TEST_DATA = [
+  {
+    "word": "allein",
+    "lang_code": "de",
+    "pos": "adj",
+    "etymology_text": "From Middle High German al-ein. Cognate with Middle English al-one, English alone, Dutch alleen, Low German alleene (Münsterländisch), alläine (Sauerländisch).",
+    "pronunciation": "/(ʔ)aˈlaɪn/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "alone",
+        "example": "Er ist ganz allein."
+      }
+    ]
+  },
+  {
+    "word": "Geschichte",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German geschicht(e) (“event, struggle, story, history”), from Old High German gisciht, from the verb Proto-Germanic *skehaną, whence German geschehen. Unrelated to Schicht. Cognate with Vilamovian gyśicht.",
+    "pronunciation": "/ɡəˈʃɪçtə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "history",
+        "example": "Geschichte schreiben"
+      },
+      {
+        "gloss": "story",
+        "example": "in die Geschichte eingehen"
+      }
+    ]
+  },
+  {
+    "word": "Kommunikation",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin commūnicātiō (“sharing, communication”).",
+    "pronunciation": "/komunikaˈt͡si̯oːn/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "communication, exchange of signs",
+        "example": ""
+      },
+      {
+        "gloss": "the imparting or sharing between of anything, communication",
+        "example": ""
+      },
+      {
+        "gloss": "Holy Communion or the incarnation of Christ believed to take place therein, communication",
+        "example": ""
+      },
+      {
+        "gloss": "connecting street, communication",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Haus",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German hūs, from Old High German hūs, from Proto-West Germanic *hūs, from Proto-Germanic *hūsą.\nCognate with Old Frisian hūs, Low German Hus, Huus, Dutch huis, Icelandic hús, Faroese hús, Danish hus, Norwegian hus, Swedish hus, English house. Doublet of House.",
+    "pronunciation": "[haʊ̯s]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "house",
+        "example": "In dem Haus haben wir mal gewohnt."
+      },
+      {
+        "gloss": "home (in various phrases)",
+        "example": "Mein Großvater starb in dem Haus, wo ich geboren wurde."
+      },
+      {
+        "gloss": "theatre",
+        "example": "Dann gingen wir nach Hause"
+      }
+    ]
+  },
+  {
+    "word": "Buch",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German buoch, from Old High German buoh, from Proto-West Germanic *bōk, from Proto-Germanic *bōks. Cognate with English book.",
+    "pronunciation": "/buːx/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "book (collection of sheets of paper bound together to hinge at one edge; long work fit for publication)",
+        "example": "2006, Kai Steiner, Schmetterlinge im Bauch (Junge Liebe, Band 8), Himmelstürmer Verlag, p.103"
+      },
+      {
+        "gloss": "books (accounting records)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Auto",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Clipping of Automobil, from French automobile.",
+    "pronunciation": "/ˈaʊ̯to/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "car",
+        "example": "Das ist das Auto meines Vaters."
+      }
+    ]
+  },
+  {
+    "word": "Computer",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from English computer.",
+    "pronunciation": "/kɔmˈpjuːtɐ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "computer (programmable electronic device that performs mathematical calculations, logical operations, and usually also data retrieval/storage)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Wasser",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Etymology tree\nProto-Indo-European *wed-\nProto-Indo-European *-r̥\nProto-Indo-European *wódr̥\nProto-Germanic *watōr\nProto-West Germanic *watar\nOld High German waȥȥar\nMiddle High German wazzer\nGerman Wasser\nFrom Middle High German waȥȥer, from Old High German waȥȥar, from Proto-West Germanic *watar, from Proto-Germanic *watōr, from Proto-Indo-European *wédōr, collective of *wódr̥.\nCompare Low German Water, Dutch water, English water, Danish vand.",
+    "pronunciation": "/ˈva.sər/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "water (H₂O)",
+        "example": ""
+      },
+      {
+        "gloss": "alcoholic beverage, similar to brandy, made from fermented fruit",
+        "example": ""
+      },
+      {
+        "gloss": "clipping of Mineralwasser/Tafelwasser",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "bequem",
+    "lang_code": "de",
+    "pos": "adj",
+    "etymology_text": "From Middle High German bequæme, bekōme (“suitable”), from Old High German biquāmi, derived from biqueman (whence German bekommen). The word seems originally to have been more common in Central and Low German; therefore possibly reinforced by cognate Middle Low German bequēme. The consonantism -qu-, which generally remained more stable in the north than it did in Upper German, may also point to that. Further cognate with Dutch bekwaam, English queem, queme, Swedish bekväm.",
+    "pronunciation": "/bəˈkveːm/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "comfortable, convenient",
+        "example": "sich es bequem machen"
+      },
+      {
+        "gloss": "relaxed, easy (avoiding difficulties, effort, work)",
+        "example": ""
+      },
+      {
+        "gloss": "suitable, fit",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "gut",
+    "lang_code": "de",
+    "pos": "adj",
+    "etymology_text": "Inherited from Middle High German guot, from Old High German guot, from Proto-West Germanic *gōd, from Proto-Germanic *gōdaz, from Proto-Indo-European *gʰedʰ- (“to unite, be associated, suit”).\nCognates\nCognate to Luxembourgish gutt, Silesian East Central German gutt, Dutch goed, West Frisian goed, Saterland Frisian goud, English good, Danish god, Norwegian god and Swedish god.",
+    "pronunciation": "/ɡuːt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "good (acting in the interest of what is beneficial, ethical, or moral)",
+        "example": "Wir müssen gut sein, um uns gut zu fühlen."
+      },
+      {
+        "gloss": "good (effective; useful)",
+        "example": "ein guter Plan"
+      },
+      {
+        "gloss": "good (fortunate)",
+        "example": "Der hat's gut."
+      },
+      {
+        "gloss": "good (having a particularly pleasant taste)",
+        "example": "Mmmh, das schmeckt gut."
+      },
+      {
+        "gloss": "all right, fair, proper (satisfactory)",
+        "example": "Ist schon gut."
+      },
+      {
+        "gloss": "good (full; entire; at least as much as)",
+        "example": "Eine gute Stunde"
+      }
+    ]
+  },
+  {
+    "word": "schön",
+    "lang_code": "de",
+    "pos": "adj",
+    "etymology_text": "Inherited from Middle High German schœne, from Old High German scōni, from Proto-West Germanic *skaunī, from Proto-Germanic *skauniz.",
+    "pronunciation": "/ʃøːn/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "beautiful, lovely, pretty, handsome",
+        "example": "Nowhere is there a land more beautiful than ours at this time [or in this age]..."
+      },
+      {
+        "gloss": "good, great, splendid",
+        "example": "Der Sonnenuntergang am Strand war wirklich schön."
+      },
+      {
+        "gloss": "nice, pleasant",
+        "example": "Am liebsten entfloh sie dem allem in den großen Garten. Da verbrachte sie ihre schönsten Stunden."
+      }
+    ]
+  },
+  {
+    "word": "Freund",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Inherited from Middle High German vriunt, from Old High German friunt, from Proto-West Germanic *friund, from Proto-Germanic *frijōndz (“lit., the loving one; lover, loved one, friend”), from a derivative of Proto-Indo-European *preyH-.\nCognate with Dutch vriend, German Low German Fründ, Luxembourgish Frënd, West Frisian freon, English friend, Danish frænde (“relative”), Faroese frændi (“friend, relative”), Icelandic frændi (“relative”), Norwegian Bokmål frende (“relative”), Norwegian Nynorsk frende (“relative”), Swedish frände (“relative”), Welsh ffrind (“friend”), Yiddish פֿרײַנד (fraynd, “friend”), Gothic 𐍆𐍂𐌹𐌾𐍉𐌽𐌳𐍃 (frijōnds, “friend”), Old English frēond (“friend, lover”), Old Norse frændi (“friend, relative”).",
+    "pronunciation": "/frɔʏ̯nt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "friend",
+        "example": "Lass uns Freunde bleiben."
+      },
+      {
+        "gloss": "boyfriend",
+        "example": "Hast du einen Freund?"
+      },
+      {
+        "gloss": "blood relative (in the sense of a person that is or should be one’s friend by nature)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Arbeit",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German arbeit, from Old High German arbeit, from Proto-West Germanic *arbaiþi, from Proto-Germanic *arbaidiz, ultimately from Proto-Indo-European *h₃órbʰos (“orphan, servant, slave”), from which English orphan is also derived. Cognate with Yiddish אַרבעט (arbet), Middle English arveth.",
+    "pronunciation": "/ˈaʁbaɪ̯t/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "toil, regularly performed work, regularly pursued economic activity, labor, job, employment, occupation",
+        "example": "Seine Arbeit macht ihm Spaß."
+      },
+      {
+        "gloss": "job, task, assignment",
+        "example": "Ich kann gerade nicht. Ich bin bei der Arbeit!"
+      },
+      {
+        "gloss": "effort, work, human expenditure",
+        "example": "Er war auf dem Weg zur Arbeit."
+      },
+      {
+        "gloss": "performance, workmanship, work, the result of effort that might consist in a product or performance itself depending on what is owed",
+        "example": "Er war auf der Arbeit."
+      },
+      {
+        "gloss": "work, energy transmitted by force through a body",
+        "example": "Während der Arbeit"
+      }
+    ]
+  },
+  {
+    "word": "Zeit",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Etymology tree\nProto-Indo-European *deh₂y-\nProto-Indo-European *-tis\nProto-Indo-European *déh₂itis\nProto-Germanic *tīdiz\nProto-West Germanic *tīdi\nOld High German zīt\nMiddle High German zīt\nGerman Zeit\nInherited from Middle High German zīt, from Old High German zīt, from Proto-West Germanic *tīdi, from Proto-Germanic *tīdiz, from Proto-Indo-European *déh₂itis, from *deh₂y- + *-tis.\nCognate with Low German Tiet, Tied, Dutch tijd, English tide, Danish tid, Norwegian tid, Swedish tid. Also cognate, more distantly, with English time.",
+    "pronunciation": "[t͡saɪ̯t]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "time (as a concept)",
+        "example": "In der mittelniedersächsischen Zeit war das Sassische [= Niedersächsische (Nds.)] auch hier die Schriftsprache. Doch war sie nicht ganz so stark vom Mittelniedersächsischen Lübischer Prägung beeinflußt wie in Norddeutschland."
+      },
+      {
+        "gloss": "time of day (clipping of Uhrzeit)",
+        "example": ""
+      },
+      {
+        "gloss": "period, era (time in the past)",
+        "example": ""
+      },
+      {
+        "gloss": "stint (e.g. in the army)",
+        "example": ""
+      },
+      {
+        "gloss": "tense",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "mensch",
+    "lang_code": "de",
+    "pos": "pron",
+    "etymology_text": "From Mensch (“human being”). Coined as (gender-neutral) alternative to man (“one”) for the same reason as frau, which see. Compare the use of they (vs she vs he) in English to refer to a generic or specific person whose gender is unknown.",
+    "pronunciation": "/mɛnʃ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "one, they (indefinite third-person singular pronoun)",
+        "example": "„Nichtverhandeln war mehr ein Gefühl, daß mit dem Staat eh nichts vernünftiges anzufangen ist, daß mensch nur übers Ohr gehauen wird, wenn mensch sich auf Gespräche mit den Regierenden einläßt […]“"
+      }
+    ]
+  },
+  {
+    "word": "Kind",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German kint, from Old High German kind, from Proto-West Germanic *kind, from Proto-Germanic *kindą, *kinþą, from Proto-Indo-European *ǵenh₁- (“to give birth”).",
+    "pronunciation": "/kɪnt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "kid; child (young person)",
+        "example": "Ein Mann kann nicht wieder zum Kinde werden oder er wird kindisch. Aber freut ihn die Naivetät des Kindes nicht, und muß er nicht selbst wieder auf einer höhren Stufe streben, seine [des Kindes] Wahrheit zu reproduzieren?"
+      },
+      {
+        "gloss": "child; offspring (person with regard to his or her parents; also a baby animal or young animal, especially as the second component in numerous compound nouns)",
+        "example": "Er war das zweitgeborene Kind in der Familie."
+      }
+    ]
+  },
+  {
+    "word": "tag",
+    "lang_code": "de",
+    "pos": "verb",
+    "etymology_text": "",
+    "pronunciation": "/taːk/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "singular imperative of tagen",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Nacht",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Etymology tree\nProto-Indo-European *nókʷts\nProto-Germanic *nahts\nProto-West Germanic *naht\nOld High German naht\nMiddle High German naht\nGerman Nacht\nInherited from Middle High German naht, from Old High German naht, from Proto-West Germanic *naht, from Proto-Germanic *nahts, from Proto-Indo-European *nókʷts.",
+    "pronunciation": "/naxt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "night",
+        "example": "Die Nacht war lang und frostig."
+      },
+      {
+        "gloss": "darkness",
+        "example": "Sie wurden von der Nacht verschlungen."
+      }
+    ]
+  },
+  {
+    "word": "Jahr",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German jār, from Old High German jār, from Proto-West Germanic *jār. Compare Low German Johr, Jahr, Dutch jaar, English year, Danish år. Doublet of Uhr.",
+    "pronunciation": "/jaːr/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "year (solar year, the time it takes the Earth to complete one orbit of the Sun)",
+        "example": "Jahr für Jahr"
+      },
+      {
+        "gloss": "year (time it takes for any astronomical object to directly orbit its star)",
+        "example": "Jahr und Tag"
+      },
+      {
+        "gloss": "year (period between set dates that mark a year)",
+        "example": ""
+      },
+      {
+        "gloss": "year (level or grade in school or college)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Monat",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German mōnōt, mānōt m or n, from Old High German mānōd m, from Proto-West Germanic *mānōþ. See also Mond. Compare Old Saxon mānoth, Dutch maand, English month, Danish måned.",
+    "pronunciation": "/ˈmoːnat/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "month (division of a year, usually one twelfth ≈ 30 days)",
+        "example": "bis zum Ende des Monats"
+      },
+      {
+        "gloss": "month (any period of such length)",
+        "example": "schon seit einem Monat"
+      },
+      {
+        "gloss": "month (period between two new moons)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Woche",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German woche, from Old High German wohha, alteration of older wëhha, from Proto-West Germanic *wikā, from Proto-Germanic *wikǭ, from Proto-Indo-European *weyg- (“to bend, wind, turn, yield”). Compare English week, Yiddish וואָך (vokh), Dutch week, West Frisian wike, Danish uge, Swedish vecka.",
+    "pronunciation": "/ˈvɔxə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "week (period of seven days counting from Monday to Sunday, or from Sunday to Saturday)",
+        "example": "ab nächster Woche"
+      },
+      {
+        "gloss": "week (any period of seven consecutive days)",
+        "example": "vor Wochen"
+      },
+      {
+        "gloss": "week; weekdays (those days of a given week on which most people work)",
+        "example": "jede zweite Woche"
+      }
+    ]
+  },
+  {
+    "word": "Stunde",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German stunde, from Old High German stunta, from Proto-West Germanic *stundu, from Proto-Germanic *stundō (“point in time, hour”).\nCognate with Catalan estona (“while”), Hunsrik Stunn (“while, hour”), Low German Stunn, Stünn (“hour”), dated Dutch stond (“time”), English stound (“hour, while, moment, time”), Danish stund (“while”), Norwegian stund (“while”), Northern Sami stund (“while”), Finnish tunti (“hour”). More at stound.",
+    "pronunciation": "/ˈʃtʊndə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "hour (unit of time consisting of 60 minutes)",
+        "example": "Der Film dauert drei Stunden."
+      },
+      {
+        "gloss": "hour, moment, time (point in time)",
+        "example": "Bitte für uns Sünder, jetzt und in der Stunde unsres Todes."
+      },
+      {
+        "gloss": "lesson; class (teaching unit, usually between 45 and 90 minutes)",
+        "example": "Ich muss jetzt zur Klavierstunde."
+      }
+    ]
+  },
+  {
+    "word": "Minute",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "15th c., from Medieval Latin minūta (“60th of an hour; note”).",
+    "pronunciation": "/miˈnuːtə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "minute (unit of time; unit of angle)",
+        "example": "Jeder Grad oder 360ste Theil des Circkels wird ferner vertheilt in 60. andere Theil, und heissen Minuten, ein jedes Minut wieder in 60. Theil oder Secunda, ein jedes Secund weiter in 60. Theil oder 3tia [i.e. tertia] rc."
+      }
+    ]
+  },
+  {
+    "word": "Sekunde",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin secunda. The units of time and angle are from pars minuta secunda (literally “second minute part”).",
+    "pronunciation": "/zeˈkʊndə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "A unit of time; a second.",
+        "example": ""
+      },
+      {
+        "gloss": "A unit of angular measurement; a second.",
+        "example": ""
+      },
+      {
+        "gloss": "A second, an interval of 1 (kleine Sekunde, minor second) or 2 (große Sekunde, major second) semitones.",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Land",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German lant, from Old High German lant, from Proto-West Germanic *land, from Proto-Germanic *landą, from Proto-Indo-European *lendʰ- (“land, heath”). Compare Dutch, English, and Danish land, Gothic 𐌻𐌰𐌽𐌳 (land).",
+    "pronunciation": "/lant/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "country (territory of a nation)",
+        "example": ""
+      },
+      {
+        "gloss": "state, province (political division of a federation retaining a notable degree of autonomy)",
+        "example": ""
+      },
+      {
+        "gloss": "land (real estate or landed property)",
+        "example": ""
+      },
+      {
+        "gloss": "land (part of Earth which is not covered by oceans or other bodies of water)",
+        "example": ""
+      },
+      {
+        "gloss": "country, countryside (rural area, as opposed to a town or city)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Stadt",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German stat, from Old High German stat, from Proto-West Germanic *stadi, from Proto-Germanic *stadiz, from Proto-Indo-European *stéh₂tis. Cognate with English stead. Doublet of Statt and Stätte.",
+    "pronunciation": "/ʃtat/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "city (a large settlement)",
+        "example": "Der Zerfall des Römerreiches raubte der Stadt Rom die alte Stellung als Mittelpunkt alles Geschehens."
+      },
+      {
+        "gloss": "town (a settlement larger than a village)",
+        "example": ""
+      },
+      {
+        "gloss": "city center (a central business area of a city)",
+        "example": ""
+      },
+      {
+        "gloss": "city, town, town council, city council (a governing body of people elected to oversee management of a municipality)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Dorf",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German dorf, from Old High German dorf, thorph, from Proto-West Germanic *þorp, from Proto-Germanic *þurpą.\nDoublet of Truppe (English troop). Cognate with Old Dutch thorp (modern Dutch dorp), Old Saxon thorp, Old English þorp (archaic English thorp).",
+    "pronunciation": "/dɔrf/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "village (rural habitation of size between a hamlet and a town)",
+        "example": "1903, Fanny zu Reventlow, Ellen Olestjerne, in Franziska Gräfin zu Reventlow: Gesammelte Werke, Albert Langen, page 551"
+      },
+      {
+        "gloss": "backwater (remote place; somewhere that remains unaffected by new events, progresses, ideas, etc.)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Straße",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German strāȥe, from Old High German strāȥa, from Proto-West Germanic *strātu (“street”), from Latin (via) strata.\nThe sense “strait” is a calque of Middle Low German strâte, itself a phono-semantic matching of Middle English streit, from Old French estreit (“narrow”), from unrelated Latin strictus.",
+    "pronunciation": "/ˈʃtʁaːsə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "street; road (a way wide enough to be passable for vehicles, generally paved, in or outside a settlement)",
+        "example": "Das Kind überquerte die Straße."
+      },
+      {
+        "gloss": "carriageway (the part of a road or street used by vehicles, excluding the pavement, etc.)",
+        "example": "Diese Straße führt nach Kirchdorf."
+      },
+      {
+        "gloss": "public, any area accessible to anyone",
+        "example": "Die Straße ist für den Verkehr gesperrt."
+      },
+      {
+        "gloss": "general public, using the locale to describe people not part of a specific group",
+        "example": ""
+      },
+      {
+        "gloss": "the streets, areas or groups of people of no income or criminal affiliation, or the leading of a life associated with these",
+        "example": ""
+      },
+      {
+        "gloss": "strait (channel of water)",
+        "example": ""
+      },
+      {
+        "gloss": "straight",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Platz",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German plaz, from Old French place, from Latin platēa, from Ancient Greek πλατεῖα (plateîa), shortening of πλατεῖα ὁδός (plateîa hodós, “broad way”). Cognate with English place.\nDisplaced native Old High German zīh (“place, court/village square, market”).",
+    "pronunciation": "/plat͡s/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "square, plaza, piazza",
+        "example": "Marktplatz"
+      },
+      {
+        "gloss": "circus",
+        "example": "für etwas Platz machen"
+      },
+      {
+        "gloss": "space, room",
+        "example": "Hier ist kein Platz."
+      },
+      {
+        "gloss": "place, seat, spot, position (precise location someone or something occupies)",
+        "example": "Ich halte dir einen Platz frei."
+      },
+      {
+        "gloss": "place, location, site (in general)",
+        "example": "Für deine Blumen finden wir bestimmt einen schönen Platz."
+      },
+      {
+        "gloss": "spot, place (position in a hierarchy or sequence)",
+        "example": "Die Zeit wisst ihr ja, den Platz sag ich euch vorher noch."
+      },
+      {
+        "gloss": "court, field, pitch, course",
+        "example": "Sie hat einen Platz in der Mannschaft."
+      },
+      {
+        "gloss": "village, town, municipality",
+        "example": "auf dem Platz"
+      },
+      {
+        "gloss": "place (rank in a competition)",
+        "example": "Dies ist das beste Hotel am Platz."
+      }
+    ]
+  },
+  {
+    "word": "Garten",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German garte, from Old High German garto, from Proto-West Germanic *gardō.\nCognate with Dutch gaarde, English yard, and through a Romance borrowing from Frankish: English garden, French jardin, Spanish jardín, Italian giardino. Also, cognate with Proto-Slavic *gȏrdъ, shifted to Russian город (gorod), Polish gród or Czech hrad.",
+    "pronunciation": "/ˈɡaʁ.tən/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "garden, yard (grounds at the front or back of a house)",
+        "example": "Wir sitzen im Garten."
+      },
+      {
+        "gloss": "garden (outdoor area containing one or more types of plants, usually plants grown for food or ornamental purposes)",
+        "example": ""
+      },
+      {
+        "gloss": "orchard (garden or an area of land for the cultivation of fruit or nut trees)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Zimmer",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German zimber, from Old High German zimbar, from Proto-West Germanic *timr, from Proto-Germanic *timrą, from Proto-Indo-European *dem- (“build, house”) (see Proto-Indo-European *dṓm). Cognate with English timber and Dutch timmer (“building; construction; room”).",
+    "pronunciation": "/ˈt͡sɪmɐ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "room (separate part of a building, enclosed by walls, a floor and a ceiling)",
+        "example": "1918, Elisabeth von Heyking, Die Orgelpfeifen, in: Zwei Erzählungen, Phillipp Reclam jun. Verlag, page 19"
+      }
+    ]
+  },
+  {
+    "word": "Fenster",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German venster, from Old High German fenstar, from Proto-West Germanic *fenestr (“window”).",
+    "pronunciation": "/ˈfɛnstɐ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "window",
+        "example": "sich weit aus dem Fenster lehnen"
+      },
+      {
+        "gloss": "time frame",
+        "example": "Sie schaute auf dem Fenster."
+      }
+    ]
+  },
+  {
+    "word": "Tür",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German, from Old High German turi, from Proto-West Germanic *dur. Compare English door.",
+    "pronunciation": "/tyːr/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "door (rigid plane on a hinge)",
+        "example": "Die Tür ist aus Eichenholz."
+      },
+      {
+        "gloss": "door; doorway (passage that can be blocked with such a plane)",
+        "example": "Kannst du bitte die Tür zumachen?!"
+      }
+    ]
+  },
+  {
+    "word": "Tisch",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German tisch, from Old High German tisc, from Proto-West Germanic *disk (“dish”).",
+    "pronunciation": "/tɪʃ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "table (a piece of furniture with a relatively deep surface at roughly waist or knee level); specific uses include:",
+        "example": "Kommt, der Tisch ist gedeckt!"
+      },
+      {
+        "gloss": "dining table, dinner table",
+        "example": "Legen amerikanische Chefs wirklich die Füße auf den Tisch?"
+      },
+      {
+        "gloss": "table (a piece of furniture with a relatively deep surface at roughly waist or knee level); specific uses include:",
+        "example": "Herr Weber ist zu Tisch."
+      },
+      {
+        "gloss": "desk (table used for writing)",
+        "example": ""
+      },
+      {
+        "gloss": "table (a piece of furniture with a relatively deep surface at roughly waist or knee level); specific uses include:",
+        "example": ""
+      },
+      {
+        "gloss": "bench, workbench (table at which manual work is done)",
+        "example": ""
+      },
+      {
+        "gloss": "meal (food served or eaten as a repast)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Stuhl",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German stuol, from Old High German stuol, from Proto-West Germanic *stōl.\nCognate with Dutch stoel, English stool, Swedish stol; ultimately from Proto-Indo-European *steh₂- and thus related to stehen.",
+    "pronunciation": "/ʃtuːl/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "a chair (to sit on)",
+        "example": "Ich habe die ganze Zeit auf meinem Stuhl gesessen!"
+      },
+      {
+        "gloss": "a chair (professorship)",
+        "example": "Professor Martin wurde überraschend auf den Stuhl berufen."
+      },
+      {
+        "gloss": "a see (bishop's seat: bishopric)",
+        "example": "Herr Urkwicz hatte heute wieder sehr weichen Stuhl."
+      },
+      {
+        "gloss": "feces, stool",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Bett",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German bet, bette, from Old High German betti, from Proto-West Germanic *badi, from Proto-Germanic *badją (“plot, grave, resting-place, bed”).\nCognate with Low German Bedd, Dutch bed, West Frisian bêd, English bed, Swedish bädd, Icelandic beður. Doublet of Beet.",
+    "pronunciation": "/bɛt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "bed (piece of furniture, usually flat and soft, for resting or sleeping on; one's place of sleep or rest)",
+        "example": ""
+      },
+      {
+        "gloss": "bed (bottom of a body of water, such as an ocean, sea, lake, or river)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Lampe",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German lampe, from Latin lampada, from Latin lampas. Cognate with English lamp.",
+    "pronunciation": "/ˈlampə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "lamp, light (piece of furniture, or fixture mounted on a wall or ceiling, holding one or more electric light sockets)",
+        "example": ""
+      },
+      {
+        "gloss": "clipping of Glühlampe: bulb, light bulb (evacuated glass bulb containing a metal filament or an article that resembles such a bulb)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Bild",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German bilde, from Old High German bilidi, biladi, from Proto-West Germanic *biliþī.",
+    "pronunciation": "/bɪlt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "image; picture; painting; photo (optical representation of something)",
+        "example": ""
+      },
+      {
+        "gloss": "image (idea or mental concept of something)",
+        "example": ""
+      },
+      {
+        "gloss": "image",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Buch",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German buoch, from Old High German buoh, from Proto-West Germanic *bōk, from Proto-Germanic *bōks. Cognate with English book.",
+    "pronunciation": "/buːx/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "book (collection of sheets of paper bound together to hinge at one edge; long work fit for publication)",
+        "example": "2006, Kai Steiner, Schmetterlinge im Bauch (Junge Liebe, Band 8), Himmelstürmer Verlag, p.103"
+      },
+      {
+        "gloss": "books (accounting records)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Zeitung",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle Dutch tīdinge, whence is borrowed Middle High German zīdunge (West Central German), from Proto-West Germanic *tīdungu (“message”), from the verb *tīdōn (“to happen”), from Proto-West Germanic *tīdi (“time, interval”). From this the later Upper German form zītunge, and then the modern form.\nCompare Dutch tijding, English tiding, Swedish tidning, Hunsrik Zeidung, Yiddish צײַטונג (tsaytung).",
+    "pronunciation": "/ˈt͡saɪ̯tʊŋ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "newspaper",
+        "example": "[Macbeth.] Giebt's keine neue Zeitungen?"
+      },
+      {
+        "gloss": "tidings, news",
+        "example": "Das Einz'ge, Carl, warum ich Sie mit Thränen / Beschwöre – fliehen Sie! – eh meine Damen – / Eh meine Kerkermeister Sie und mich / Beisammen finden und die große Zeitung / Vor Ihres Vaters Ohren bringen"
+      }
+    ]
+  },
+  {
+    "word": "Zeitschrift",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Zeit (“time”) + Schrift (“writing”), \"writings of the time\".\nAttested since the 17th century in the meaning \"chronogram\"; in the meaning \"periodical\" since around 1750.",
+    "pronunciation": "/ˈt͡saɪ̯tˌʃʁɪft/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "magazine (published in regular intervals)",
+        "example": ""
+      },
+      {
+        "gloss": "periodical",
+        "example": ""
+      },
+      {
+        "gloss": "chronogram",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Fernsehen",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "fern + sehen (“far-see”), a calque of French télévision.",
+    "pronunciation": "/ˈfɛʁnˌzeː.ən/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "television",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Radio",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Circa 1920, from English radio, short for radiotelegraphy.",
+    "pronunciation": "/ˈraːdi̯o/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "radio (technology that allows broadcasters to transmit audio programs; such programs)",
+        "example": ""
+      },
+      {
+        "gloss": "radio (device for receiving such programs)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Telefon",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "",
+    "pronunciation": "/ˌteːləˈfoːn/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "telephone",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Handy",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Some sources claim the existence of an early English preform. Perhaps from English handie-talkie, apparently used as a Motorola product name based on walkie-talkie. Or perhaps derived from English handheld transceiver, coined by CB radio users, later informally applied to the first mobile phones, and soon found in product names.\nOthers assert the use for a phone is exclusively German, possibly as a short form of Handfunktelefon, as which it was marketed by firms like Bosch and Hagenuk. Thus equivalent to an anglicisation of Hand (“hand”) + -i (diminutive suffix).",
+    "pronunciation": "/ˈhɛndi/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "mobile phone, mobile, cell phone, phone (portable, wireless telephone)",
+        "example": "Alle paar Minuten hängt er am Handy und macht Termine klar."
+      }
+    ]
+  },
+  {
+    "word": "Internet",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from English Internet.",
+    "pronunciation": "/ˈɪntɐnɛt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "internet",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Computer",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from English computer.",
+    "pronunciation": "/kɔmˈpjuːtɐ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "computer (programmable electronic device that performs mathematical calculations, logical operations, and usually also data retrieval/storage)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Programm",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Latin programma (partly through French programme), from Ancient Greek πρόγραμμα (prógramma).",
+    "pronunciation": "/proˈɡram/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "program (set of structured ideas or activities; a list thereof)",
+        "example": "Die Sendung läuft im dritten Programm."
+      },
+      {
+        "gloss": "schedule; programming (whole of a station’s shows; their chronological order; a list thereof)",
+        "example": ""
+      },
+      {
+        "gloss": "ellipsis of Fernsehprogramm; television station",
+        "example": ""
+      },
+      {
+        "gloss": "schedule; programming (whole of a station’s shows; their chronological order; a list thereof)",
+        "example": ""
+      },
+      {
+        "gloss": "a single item of this schedule; a program; show",
+        "example": ""
+      },
+      {
+        "gloss": "program",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Software",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from English software.",
+    "pronunciation": "[ˈzɔftvɛːɐ̯]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "software",
+        "example": "Wer nutzt die Softwares, wie wirken die Programme auf das tägliche Leben?"
+      },
+      {
+        "gloss": "piece of software, a program",
+        "example": "1999, C. Nimsgern et al., Computergestützte Evaluation der Nachstardichte mittels EPCO; in: C. Duncker & C. Ohrloff & F. Wilhelm (eds.), DGII: 12. Kongreß der Deutschsprachigen Gesellschaft für Intraokularlinsen-Implantation und refraktive Chirurgie, Springer, p.195"
+      }
+    ]
+  },
+  {
+    "word": "Hardware",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from English hardware (“harte Ware”).",
+    "pronunciation": "/ˈhaːɐ̯tvɛːɐ̯/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "hardware",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Daten",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Adapted from older Data + -en, replacing it mid-late 19th century.",
+    "pronunciation": "[ˈdaːtn̩]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "data, plural of Datum (“piece of information”)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Information",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin informatio.",
+    "pronunciation": "/ˌɪnfɔʁmaˈtsjoːn/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "a piece of information; (in the plural) information, intelligence (things to be known about a topic)",
+        "example": "Wir brauchen mehr Informationen über den Fall."
+      },
+      {
+        "gloss": "information (the act of informing or the state of being informed)",
+        "example": "die Information der Öffentlichkeit"
+      },
+      {
+        "gloss": "information desk",
+        "example": "nach unserer Information"
+      }
+    ]
+  },
+  {
+    "word": "wissen",
+    "lang_code": "de",
+    "pos": "verb",
+    "etymology_text": "From Middle High German wiȥȥen and Old High German wiȥȥan, from Proto-West Germanic *witan, from Proto-Germanic *witaną, from Proto-Indo-European *wóyde (“to see, to know”).\nCompare Dutch weten, Danish vide, Swedish veta, English wit and Latin videō (“to see”).",
+    "pronunciation": "/ˈvɪsn̩/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "to know; to be aware of (a fact)",
+        "example": "Ich weiß, wo du bist."
+      },
+      {
+        "gloss": "to know; to be aware of (a fact)",
+        "example": "von etwas wissen"
+      },
+      {
+        "gloss": "to be assured that something or someone is in a certain state",
+        "example": "sich in Sicherheit wissen"
+      },
+      {
+        "gloss": "to remember (with noch)",
+        "example": "die Wählerschaft hinter sich wissen"
+      }
+    ]
+  },
+  {
+    "word": "lernen",
+    "lang_code": "de",
+    "pos": "verb",
+    "etymology_text": "From Middle High German lernen, from Old High German lernēn, lirnēn, from Proto-West Germanic *liʀnēn. Cognate with Old English leornian (Modern English learn). Related to lehren.",
+    "pronunciation": "/ˈlɛɐnən/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "to learn, to acquire knowledge",
+        "example": "Ich lerne noch."
+      },
+      {
+        "gloss": "to study (revise or review materials)",
+        "example": "Ich lerne Spanisch."
+      },
+      {
+        "gloss": "to train to become something",
+        "example": "Es gilt deshalb, die richtigen Lehren aus der Krise zu ziehen, aus den Fehlern der Vergangenheit zu lernen, um die Zukunft zu sichern."
+      },
+      {
+        "gloss": "to learn (someone) (i.e. to teach)",
+        "example": "Ich lerne für meine Prüfung."
+      }
+    ]
+  },
+  {
+    "word": "lehren",
+    "lang_code": "de",
+    "pos": "verb",
+    "etymology_text": "From Middle High German lēren, from Old High German lēren, from Proto-West Germanic *laiʀijan, from *laizō (“lore”), from Proto-Germanic *laizijaną, from *lizaną + *-janą, stative from the root *leys- (“track, furrow, trace, trail”).\nCognate with Low German lehren, Dutch leren, Afrikaans leer, Danish lære, Norwegian lære, Swedish lära, English lear. Related to lernen.",
+    "pronunciation": "/ˈleːʁən/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "to teach (a class, a subject); to be a teacher",
+        "example": "Ich lehre Geschichte."
+      },
+      {
+        "gloss": "to teach",
+        "example": "Sie lehrt an der Uni."
+      }
+    ]
+  },
+  {
+    "word": "Schule",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German schuole, from Old High German scuola.",
+    "pronunciation": "/ˈʃuːlə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "school (an institution dedicated to teaching and learning (especially before university); department/institute at a college or university; art movement; followers of a particular doctrine)",
+        "example": "Ab Morgen haben wir wieder Schule."
+      },
+      {
+        "gloss": "school, shoal (of fish)",
+        "example": ""
+      },
+      {
+        "gloss": "pod (group of whales or similar mammals)",
+        "example": ""
+      },
+      {
+        "gloss": "a synagogue",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Universität",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin ūniversitās. Compare Dutch universiteit.",
+    "pronunciation": "/ˌuni.vɛʁ.ziˈtɛːt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "university",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Studium",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin studium (“study, university”), 15th century.",
+    "pronunciation": "/ˈʃtuːdi̯ʊm/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "study (the act of studying in general)",
+        "example": ""
+      },
+      {
+        "gloss": "studies (higher education to get a degree at a university)",
+        "example": ""
+      },
+      {
+        "gloss": "study, examination (the act of looking at and examining minutely)",
+        "example": ""
+      },
+      {
+        "gloss": "university, school",
+        "example": ""
+      },
+      {
+        "gloss": "study (room for working or studying)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Prüfung",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From prüfen + -ung; cognate with Hunsrik Priefung.",
+    "pronunciation": "/ˈpʁyːfʊŋ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "an official test or examination on a subject",
+        "example": ""
+      },
+      {
+        "gloss": "check, examination, inspection, verification, audit, validation",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Note",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Ultimately from Latin nota (“mark, sign, remark, note”).",
+    "pronunciation": "/ˈnoːtə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "note (character indicating the length and pitch of a tone)",
+        "example": ""
+      },
+      {
+        "gloss": "note",
+        "example": ""
+      },
+      {
+        "gloss": "grade, mark",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Lehrer",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German lērer, lērære, from Old High German lērāri; equivalent to lehren + -er.",
+    "pronunciation": "/ˈleːrər/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "agent noun of lehren: one who teaches, teacher, instructor, especially a school teacher",
+        "example": "2018, Carsten Knop, Die Symbiose von Mensch und Computer, page 190, in: Christian Bär, Thomas Grädler, Robert Mayr (editors), Digitalisierung im Spannungsfeld von Politik, Wirtschaft, Wissenschaft und Recht. 1. Band: Politik und Wirtschaft, pages 183 and following"
+      }
+    ]
+  },
+  {
+    "word": "Professor",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Learned borrowing from Latin professor (“declarer, person who claims knowledge”).",
+    "pronunciation": "/pʁoˈfɛsoːɐ̯/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "professor",
+        "example": "Miß Panell aus Massachusetts, ist zum Professor der Literatur und der lateinischen Sprache am Kollegium zu Ohio ernannt worden. Also ein weiblicher Professor! Da werden doch die Kollegien fleißig besucht werden?"
+      }
+    ]
+  },
+  {
+    "word": "Student",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German studente, from Medieval Latin studēns.",
+    "pronunciation": "/ʃtuˈdɛnt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "student (person attending lectures at a university; male or of unspecified sex)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Schüler",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German schuolære, from Old High German scuolāri, from Medieval Latin scholaris; analyzable as Schule + -er.",
+    "pronunciation": "/ˈʃyːlɐ/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "pupil, student, schoolboy (male or of unspecified gender)",
+        "example": ""
+      },
+      {
+        "gloss": "disciple (male or of unspecified gender)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "klasse",
+    "lang_code": "de",
+    "pos": "adj",
+    "etymology_text": "Adjectival form of Klasse (“class, grouping; class, excellence”).",
+    "pronunciation": "/ˈklasə/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "great, awesome",
+        "example": "Ich fand das Spiel klasse."
+      }
+    ]
+  },
+  {
+    "word": "Unterricht",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From unterrichten; from Middle High German underrihten; unter- + richten.",
+    "pronunciation": "/ˈʊntɐˌʁɪçt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "lesson, class, instruction, education",
+        "example": "Unterricht haben"
+      }
+    ]
+  },
+  {
+    "word": "Büro",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Ca. 1700, from French bureau (“desk, office”), which see.",
+    "pronunciation": "/byˈroː/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "office (room for working)",
+        "example": "Sie sitzt in ihrem Büro."
+      },
+      {
+        "gloss": "office, bureau, agency (administrative department or service provider)",
+        "example": "Fundbüro"
+      },
+      {
+        "gloss": "the staff of such places",
+        "example": "Reisebüro"
+      }
+    ]
+  },
+  {
+    "word": "Fabrik",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Latin fābrica or French fabrique.",
+    "pronunciation": "/faˈbʁiːk/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "plant (factory or industrial facility)",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Geschäft",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German gescheft, from Old High German giscaft, from Proto-West Germanic *gaskafti. Cognate with Yiddish געשעפֿט (gesheft).",
+    "pronunciation": "/ɡəˈʃɛft/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "shop; store",
+        "example": "An gut 100 Ständen präsentieren sich Vereine und Geschäfte, bieten die heimischen Gastronomen eine Auswahl ihrer Spezialitäten an."
+      },
+      {
+        "gloss": "business",
+        "example": "Unternehmen und Manager, die bei ihren Geschäften im Ausland Menschenrechte verletzen, sollen künftig auch nach deutschem Zivil- und Wirtschaftsrecht haftbar gemacht werden."
+      },
+      {
+        "gloss": "business activity",
+        "example": ""
+      },
+      {
+        "gloss": "transaction",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Markt",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German market, from Old High German marchat, from Proto-West Germanic *markat (“market”).",
+    "pronunciation": "/markt/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "market (gathering for sale and purchase)",
+        "example": "Marktheidenfeld"
+      },
+      {
+        "gloss": "market (trading, economic exchange)",
+        "example": ""
+      },
+      {
+        "gloss": "market, large shop",
+        "example": ""
+      },
+      {
+        "gloss": "ellipsis of Marktplatz (“market square”)",
+        "example": ""
+      },
+      {
+        "gloss": "market town",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Kaufhaus",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Middle High German koufhūs, from Old High German koufhūs. Equivalent to kaufen (“to buy”) + Haus (“house”).",
+    "pronunciation": "[ˈkaʊ̯fˌhaʊ̯s]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "department store",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Restaurant",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from French restaurant.",
+    "pronunciation": "/rɛs.toˈrãː/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "restaurant",
+        "example": "ausgezeichnetes Restaurant."
+      }
+    ]
+  },
+  {
+    "word": "Hotel",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from French hôtel.",
+    "pronunciation": "/hoˈtɛl/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "hotel",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Krankenhaus",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Kranker (“sick person, patient”) + -en- + Haus (“house”)",
+    "pronunciation": "/ˈkʁaŋkn̩ˌhaʊ̯s/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "hospital",
+        "example": ""
+      }
+    ]
+  },
+  {
+    "word": "Polizei",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "Borrowed from Medieval Latin policia, from Late Latin polītīa.",
+    "pronunciation": "[ˌpo.liˈt͡saɪ̯]",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "police; law enforcement",
+        "example": "Die Polizei erwischte den Taschendieb auf frischer Tat."
+      }
+    ]
+  },
+  {
+    "word": "Feuerwehr",
+    "lang_code": "de",
+    "pos": "noun",
+    "etymology_text": "From Feuer (“fire”) + Wehr (“defense”).",
+    "pronunciation": "/ˈfɔɪ̯ɐˌveːɐ̯/",
+    "synonyms": [],
+    "antonyms": [],
+    "senses": [
+      {
+        "gloss": "fire brigade",
+        "example": ""
+      },
+      {
+        "gloss": "fire department",
+        "example": ""
+      }
+    ]
+  }
+];
+
+/**
+ * 导入测试数据到IndexedDB
+ */
+export async function importTestDictionaryData() {
+  try {
+    console.log('开始导入测试词典数据...');
+    
+    // 清空现有数据
+    await browserDictionaryService.clearDatabase();
+    
+    // 导入测试数据
+    const success = await browserDictionaryService.importData(TEST_DATA);
+    
+    if (success) {
+      console.log(`成功导入 ${TEST_DATA.length} 个测试词条`);
+      
+      // 验证导入
+      const testWords = ['allein', 'Geschichte', 'Kommunikation', 'bequem', 'Haus'];
+      for (const word of testWords) {
+        const result = await browserDictionaryService.queryDictionary(word, { 
+          id: 'de', 
+          name: 'German',
+          dictionaryUrl: 'https://de.wiktionary.org/wiki/###'
+        });
+        if (result.success && result.entries.length > 0) {
+          console.log(`✓ "${word}" 查询成功`);
+        } else {
+          console.log(`✗ "${word}" 未找到`);
+        }
+      }
+      
+      return true;
+    } else {
+      console.error('导入测试数据失败');
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('导入测试词典数据失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 检查是否需要导入数据
+ */
+export async function checkAndImportDictionaryData() {
+  try {
+    // 检查当前有多少词条
+    const wordCount = await browserDictionaryService.getWordCount('de');
+    
+    if (wordCount < 10) {  // 如果词条太少，导入测试数据
+      console.log(`词典只有 ${wordCount} 个词条，导入测试数据...`);
+      return await importTestDictionaryData();
+    } else {
+      console.log(`词典已有 ${wordCount} 个词条，跳过导入`);
+      return true;
+    }
+    
+  } catch (error) {
+    console.error('检查词典数据失败:', error);
+    return false;
+  }
+}
