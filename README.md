@@ -213,13 +213,13 @@ npm run dev:both
 ### 1. 下载词典数据
 
 从 [kaikki.org](https://kaikki.org/) 下载 Wiktionary 导出文件：
-
+（例子）
 | 语言 | 下载链接 | 解释语言 |
 |------|----------|----------|
 | 德语 | https://kaikki.org/dictionary/German/ | 英语 |
-| 中文 | https://kaikki.org/zhwiktionary/ | 中文 |
+| 德语 | [https://kaikki.org/zhwiktionary/ ](https://kaikki.org/zhwiktionary/%E5%BE%B7%E8%AF%AD/index.html)| 中文 |
 
-点击页面中的 "Raw JSON" 或 "Download" 获取 JSON 格式数据文件。
+点击页面中的 "Download" 获取 JSONL 格式数据文件。
 
 ### 2. 转换数据为 SQLite 数据库
 
@@ -233,7 +233,7 @@ cd scripts
 pip install -r requirements.txt
 
 # 运行转换脚本
-python extract-test-data.py /path/to/dewikt_raw_json.json
+python extract-test-data.py kaikki.org-dictionary-German.jsonl
 ```
 
 ### 3. 放置数据库文件
@@ -470,11 +470,6 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 - ✅ **去重算法**：防止重复条目显示
 - ✅ **懒加载**：按需加载词典数据
 - ✅ **智能排序**：优先显示最相关条目
-
-### 计划优化
-- 🔄 **预加载**：常见单词的预先加载
-- 🔄 **压缩传输**：响应数据压缩
-- 🔄 **增量更新**：词典数据增量同步
 
 ## 🤝 贡献指南
 
