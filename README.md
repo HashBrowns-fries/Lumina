@@ -57,47 +57,157 @@ Luminous Lute 是一个专为德语学习者设计的现代化语言学习应用
 ## 🚀 快速开始
 
 ### 前提条件
-- Node.js 18+ 
-- npm 或 yarn
-- Gemini API 密钥（用于AI功能）
 
-### 安装步骤
+- **Node.js 18+**: [下载安装](https://nodejs.org/)
+- **npm** (随 Node.js 一起安装)
+- **Git**: [下载安装](https://git-scm.com/)
+- **Gemini API 密钥** (可选，用于 AI 功能)
 
-1. **克隆仓库**
-   ```bash
-   git clone <repository-url>
-   cd luminous-lute
-   ```
+---
 
-2. **安装依赖**
-   ```bash
-   # 安装前端依赖
-   npm install
-   
-   # 安装词典服务器依赖
-   cd server
-   npm install
-   cd ..
-   ```
+## 🪟 Windows 安装指南
 
-3. **环境配置**
-   复制 `.env.local.example` 到 `.env.local` 并设置：
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
+### 1. 安装 Node.js
 
-4. **启动应用**
-   ```bash
-   # 启动前端开发服务器（端口5173）
-   npm run dev
-   
-    # 在另一个终端启动词典服务器（端口3003）
-   cd server
-   node index.js
-   ```
+访问 [Node.js 官网](https://nodejs.org/) 下载 LTS 版本（推荐 20.x）。
 
-5. **访问应用**
-   打开浏览器访问：http://localhost:5173
+安装时确保勾选：
+- ✅ `Add to PATH`
+- ✅ `Node.js runtime`
+
+安装完成后，打开 **PowerShell** 或 **命令提示符** 验证：
+
+```powershell
+node -v
+npm -v
+```
+
+### 2. 克隆项目
+
+```powershell
+git clone https://github.com/ChenhaoMeng/Lumina.git
+cd Lumina
+```
+
+### 3. 安装依赖
+
+```powershell
+# 安装前端依赖
+npm install
+
+# 安装词典服务器依赖
+cd server
+npm install
+cd ..
+```
+
+### 4. 配置环境变量（可选）
+
+在项目根目录创建 `.env.local` 文件：
+
+```env
+GEMINI_API_KEY=your_api_key_here
+```
+
+### 5. 启动应用
+
+**方式一：同时启动前端和服务器**
+```powershell
+# 需要打开两个终端窗口
+
+# 终端 1: 启动前端 (http://localhost:5173)
+npm run dev
+
+# 终端 2: 启动词典服务器 (端口 3003)
+cd server
+node index.js
+```
+
+**方式二：一键启动（推荐）**
+```powershell
+npm run dev:both
+```
+
+### 6. 访问应用
+
+打开浏览器访问：http://localhost:5173
+
+---
+
+## 🍎 macOS 安装指南
+
+### 1. 安装 Node.js
+
+**方式一：通过 Homebrew（推荐）**
+```bash
+brew install node@20
+```
+
+**方式二：通过安装包**
+访问 [Node.js 官网](https://nodejs.org/) 下载 LTS 版本。
+
+验证安装：
+```bash
+node -v
+npm -v
+```
+
+### 2. 克隆项目
+
+```bash
+git clone https://github.com/ChenhaoMeng/Lumina.git
+cd Lumina
+```
+
+### 3. 安装依赖
+
+```bash
+# 安装前端依赖
+npm install
+
+# 安装词典服务器依赖
+cd server
+npm install
+cd ..
+```
+
+### 4. 配置环境变量（可选）
+
+```bash
+# 创建环境变量文件
+touch .env.local
+```
+
+编辑 `.env.local`：
+```env
+GEMINI_API_KEY=your_api_key_here
+```
+
+### 5. 启动应用
+
+**方式一：分终端启动**
+
+```bash
+# 终端 1: 启动前端
+npm run dev
+
+# 终端 2: 启动词典服务器
+cd server
+node index.js
+```
+
+**方式二：一键启动（推荐）**
+```bash
+npm run dev:both
+```
+
+### 6. 访问应用
+
+打开浏览器访问：http://localhost:5173
+
+---
+
+## 📖 使用指南
 
 ## 📖 使用指南
 
@@ -241,31 +351,72 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 
 ## 🔧 故障排除
 
-### 常见问题
+### Windows
 
-1. **词典服务器无法启动**
-   ```
-    检查端口3003是否被占用：
-    netstat -an | findstr ":3003"
-    或使用不同端口：
-    PORT=3004 node server/index.js
+1. **端口被占用**
+   ```powershell
+   # 查看端口 3003 是否被占用
+   netstat -ano | findstr ":3003"
+   
+   # 结束占用进程
+   taskkill /PID <进程ID> /F
    ```
 
-2. **AI功能不可用**
+2. **Node.js 版本问题**
+   ```powershell
+   # 使用 nvm-windows 管理 Node.js 版本
+   # 下载: https://github.com/coreybutler/nvm-windows
+   nvm install 20
+   nvm use 20
+   ```
+
+3. **权限错误**
+   - 以管理员身份运行 PowerShell
+   - 或使用 `Set-ExecutionPolicy RemoteSigned`
+
+### macOS
+
+1. **端口被占用**
+   ```bash
+   # 查看端口 3003 是否被占用
+   lsof -i :3003
+   
+   # 结束占用进程
+   kill -9 <进程ID>
+   ```
+
+2. **Node.js 版本问题**
+   ```bash
+   # 使用 nvm 管理 Node.js 版本
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+   nvm install 20
+   nvm use 20
+   ```
+
+3. **权限错误**
+   ```bash
+   # 如果遇到 EACCES 错误
+   sudo chown -R $(whoami) ~/.npm
+   ```
+
+### 通用问题
+
+1. **AI 功能不可用**
    - 检查 `.env.local` 中的 `GEMINI_API_KEY`
    - 确认网络连接
    - 查看浏览器控制台错误
 
-3. **词形变化检测不准确**
-   - 确保词典服务器运行正常
-   - 检查数据库连接
+2. **词典服务器无法启动**
+   - 检查端口 3003 是否被占用
+   - 确认 SQLite 数据库文件存在
    - 查看服务器日志
 
-### 日志查看
-```bash
-# 前端日志 - 浏览器开发者工具控制台
-# 后端日志 - server/server.log 文件
-```
+3. **构建失败**
+   ```bash
+   # 清理缓存后重试
+   rm -rf node_modules
+   npm install
+   ```
 
 ## 📈 性能优化
 
