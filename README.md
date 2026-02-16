@@ -212,10 +212,14 @@ npm run dev:both
 
 ### 1. 下载词典数据
 
-从以下来源下载 Wiktionary 导出文件（建议使用德语）：
+从 [kaikki.org](https://kaikki.org/) 下载 Wiktionary 导出文件：
 
-- **德语 Wiktionary**: https://kaikki.org/dict/dewikt_raw_json.json
-- 或从 https://kaikki.org/ 获取其他语言
+| 语言 | 下载链接 | 解释语言 |
+|------|----------|----------|
+| 德语 | https://kaikki.org/dictionary/German/ | 英语 |
+| 中文 | https://kaikki.org/zhwiktionary/ | 中文 |
+
+点击页面中的 "Raw JSON" 或 "Download" 获取 JSON 格式数据文件。
 
 ### 2. 转换数据为 SQLite 数据库
 
