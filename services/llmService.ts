@@ -87,9 +87,19 @@ export const analyzeTerm = async (
   
   if (wiktionaryData?.success && wiktionaryData.entries.length > 0) {
     // 使用Wiktionary数据构建增强prompt
-    const entry = wiktionaryData.entries[0];
-    const wiktionaryTranslations = entry.translations.join(', ');
-    const wiktionaryDefinitions = entry.definitions.join('\n- ');
+    // 收集所有条目信息
+    const entriesInfo = wiktionaryData.entries.map((entry, index) => {
+      const pos = entry.partOfSpeech || 'unknown';
+      const definitions = entry.definitions.slice(0, 2).join('; ');
+      const isInflection = entry.isInflection || false;
+      const rootWord = entry.rootWord || entry.word;
+      return `Entry ${index + 1}: "${entry.word}" (${pos})${isInflection ? ` [inflection of ${rootWord}]` : ''} - ${definitions || 'No definition'}`;
+    }).join('\n');
+    
+    const firstEntry = wiktionaryData.entries[0];
+    const wiktionaryTranslations = firstEntry.translations.join(', ');
+    const wiktionaryDefinitions = firstEntry.definitions.join('\n- ');
+    const partOfSpeech = firstEntry.partOfSpeech || 'unknown';
     
     prompt = `WIKTIONARY-BASED LINGUISTIC ANALYSIS
 
@@ -98,35 +108,79 @@ SENTENCE CONTEXT: "${context}"
 LANGUAGE: ${language.name}
 
 WIKTIONARY DATA (AUTHORITATIVE SOURCE):
+Available dictionary entries:
+${entriesInfo}
+
+Primary entry details:
+Part of Speech: ${partOfSpeech}
 ${wiktionaryDefinitions ? `Definitions:\n- ${wiktionaryDefinitions}` : 'No definitions found'}
 ${wiktionaryTranslations ? `Translations: ${wiktionaryTranslations}` : 'No translations found'}
 
-TASK: Based on the Wiktionary data above, provide a complete linguistic analysis.
+TASK: Based on the Wiktionary data above AND the sentence context, provide a complete linguistic analysis. 
+You MUST analyze the word's actual grammatical function IN THE GIVEN SENTENCE, not just the most common dictionary entry.
 
-INSTRUCTIONS:
-1. **TRANSLATION**: Provide the primary English translation(s) for this word based on Wiktionary data. If Wiktionary has translations, use those. If not, provide your best English translation.
-2. **GRAMMAR**: Provide detailed grammatical analysis for this word in this context.
-3. **ROOT WORD**: Identify the dictionary form.
-4. **EXAMPLES**: Provide 2 natural example sentences in ${language.name}.
+CRITICAL CONTEXT ANALYSIS INSTRUCTIONS:
+1. **CONTEXT-BASED PART OF SPEECH**: First determine the word's actual part of speech IN THE SENTENCE CONTEXT:
+   - Look at grammatical markers: articles (der/die/das/ein), prepositions (am, im, zur, etc.), sentence position
+   - For German: Pay special attention to NOUNIZED ADJECTIVES (substantivierte Adjektive) like "der Alte", "das Gute", "die Weisen"
+   - If preceded by an article (der/die/das) and capitalized, it's likely a NOUNIZED ADJECTIVE functioning as a noun
+   - Example: "der Weisen" in context "am Gespräch der Weisen" = noun (genitive plural of "der Weise")
 
-CRITICAL: The translation MUST be based on Wiktionary data when available.
+2. **GRAMMAR ANALYSIS**: Provide detailed grammatical analysis based on ACTUAL CONTEXTUAL FUNCTION:
+   - For NOUNS (including nounized adjectives): Analyze case, gender, number
+   - For VERBS: Analyze tense, mood, person, number, voice  
+   - For ADJECTIVES (attributive): Analyze degree, gender, number, case
+   - For ADVERBS: Analyze degree
+   - For PRONOUNS: Analyze case, gender, number, person
+   - For OTHER: Provide relevant grammatical features
 
-RETURN JSON with: translation, grammar, rootWord, examples`;
+3. **ENTRY SELECTION**: Choose the most appropriate dictionary entry based on context:
+   - If multiple entries exist (e.g., adjective "weise" and noun "Weise"), select based on sentence function
+   - For "der Weisen": select noun entry (genitive plural of "der Weise"), NOT adjective "weise"
+
+4. **TRANSLATION**: Provide English translation(s) based on selected dictionary entry. Use Wiktionary translations when available.
+
+5. **EXPLANATION**: Provide a brief, concise explanation of this word in this context (1-2 sentences). Explain its grammatical function and meaning in the given sentence.
+
+6. **ROOT WORD**: Identify dictionary form (lemma) of the selected entry.
+
+7. **EXAMPLES**: Provide 2 natural example sentences in ${language.name} showing similar usage.
+
+RETURN JSON with: translation, grammar, explanation, rootWord, examples`;
   } else {
     // 回退到标准prompt
     prompt = `LINGUISTIC ANALYSIS TASK
 
 WORD: "${term}"
-SENTENCE: "${context}"
+SENTENCE CONTEXT: "${context}"
 LANGUAGE: ${language.name}
 
-INSTRUCTIONS:
-1. Provide the primary English translation(s) for this word
-2. Give detailed grammatical analysis
-3. Identify dictionary form (root word)
-4. Provide 2 example sentences in ${language.name}
+TASK: Analyze the word's grammatical function IN THE GIVEN SENTENCE CONTEXT, not just its most common dictionary form.
 
-RETURN JSON with: translation, grammar, rootWord, examples`;
+CRITICAL CONTEXT ANALYSIS INSTRUCTIONS:
+1. **CONTEXT-BASED PART OF SPEECH**: First determine the word's actual part of speech IN THE SENTENCE:
+   - Analyze grammatical markers: articles (der/die/das/ein), prepositions (am, im, zur, etc.), sentence position
+   - For German: Pay special attention to NOUNIZED ADJECTIVES (substantivierte Adjektive) like "der Alte", "das Gute", "die Weisen"
+   - If preceded by an article (der/die/das) and capitalized, it's likely a NOUNIZED ADJECTIVE functioning as a noun
+   - Example: "der Weisen" in context "am Gespräch der Weisen" = noun (genitive plural of "der Weise")
+
+2. **GRAMMAR ANALYSIS**: Provide detailed grammatical analysis based on ACTUAL CONTEXTUAL FUNCTION:
+   - For NOUNS (including nounized adjectives): Analyze case, gender, number
+   - For VERBS: Analyze tense, mood, person, number, voice  
+   - For ADJECTIVES (attributive): Analyze degree, gender, number, case
+   - For ADVERBS: Analyze degree
+   - For PRONOUNS: Analyze case, gender, number, person
+   - For OTHER: Provide relevant grammatical features
+
+3. **TRANSLATION**: Provide primary English translation(s) based on contextual function.
+
+4. **EXPLANATION**: Provide a brief, concise explanation of this word in this context (1-2 sentences). Explain its grammatical function and meaning in the given sentence.
+
+5. **ROOT WORD**: Identify dictionary form (lemma) based on selected analysis.
+
+6. **EXAMPLES**: Provide 2 natural example sentences in ${language.name} showing similar usage.
+
+RETURN JSON with: translation, grammar, explanation, rootWord, examples`;
   }
   
   // 添加Wiktionary URL作为来源
@@ -148,54 +202,40 @@ RETURN JSON with: translation, grammar, rootWord, examples`;
     const ai = new GoogleGenAI({ apiKey });
     let response;
     try {
-      // Gemini-specific prompt with search instructions
-      const geminiPrompt = `DICTIONARY-BASED LINGUISTIC ANALYSIS
-
-WORD: "${term}"
-SENTENCE: "${context}"
-LANGUAGE: ${language}
-
-INSTRUCTIONS:
-1. USE GOOGLE SEARCH to look up "${term}" in ${language} dictionaries (Duden for German, RAE for Spanish, etc.)
-2. Find authoritative dictionary definitions and primary translations
-3. Based on search results, provide the most accurate English translation for this context
-4. Include detailed grammatical analysis
-5. Identify dictionary form (root word)
-6. Provide 2 usage examples
-
-RETURN JSON with: translation, grammar, rootWord, examples
-
-Search query should be: "${term} ${language} dictionary definition translation"`;
-
+       // Use the same prompt as other providers
       response = await ai.models.generateContent({
         model: "gemini-3-pro-preview",
-        contents: geminiPrompt,
+        contents: prompt,
         config: {
           tools: [{ googleSearch: {} }], // Enable Search Grounding
           responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              translation: { 
-                type: Type.STRING,
-                description: "English translation based on dictionary lookup"
-              },
-              grammar: { 
-                type: Type.STRING,
-                description: "Grammatical analysis based on dictionary information"
-              },
-              rootWord: { 
-                type: Type.STRING, 
-                description: "Dictionary form from authoritative sources"
-              },
-              examples: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "Usage examples from dictionary or corpus"
-              }
-            },
-            required: ["translation", "grammar", "rootWord", "examples"]
-          }
+           responseSchema: {
+             type: Type.OBJECT,
+             properties: {
+               translation: { 
+                 type: Type.STRING,
+                 description: "English translation based on dictionary lookup"
+               },
+               grammar: { 
+                 type: Type.STRING,
+                 description: "Grammatical analysis based on dictionary information"
+               },
+               explanation: {
+                 type: Type.STRING,
+                 description: "Brief explanation of the word in context (1-2 sentences)"
+               },
+               rootWord: { 
+                 type: Type.STRING, 
+                 description: "Dictionary form from authoritative sources"
+               },
+               examples: { 
+                 type: Type.ARRAY, 
+                 items: { type: Type.STRING },
+                 description: "Usage examples from dictionary or corpus"
+               }
+             },
+             required: ["translation", "grammar", "explanation", "rootWord", "examples"]
+           }
         }
       });
     } catch (error) {
@@ -234,6 +274,7 @@ Search query should be: "${term} ${language} dictionary definition translation"`
       suggestion = {
         translation: "Parse error",
         grammar: "Could not parse AI response",
+        explanation: "Could not parse AI response",
         rootWord: term,
         examples: []
       };
@@ -242,6 +283,7 @@ Search query should be: "${term} ${language} dictionary definition translation"`
     // Ensure required fields exist
     if (!suggestion.translation) suggestion.translation = "No translation provided";
     if (!suggestion.grammar) suggestion.grammar = "No grammar analysis provided";
+    if (!suggestion.explanation) suggestion.explanation = "No explanation provided";
     if (!suggestion.rootWord) suggestion.rootWord = term;
     if (!suggestion.examples) suggestion.examples = [];
 
@@ -258,6 +300,7 @@ Search query should be: "${term} ${language} dictionary definition translation"`
     const result = {
       translation: String(suggestion.translation || ''),
       grammar: suggestion.grammar, // Can be string or object
+      explanation: String(suggestion.explanation || ''),
       rootWord: String(suggestion.rootWord || ''),
       examples: Array.isArray(suggestion.examples) ? suggestion.examples.map(e => String(e || '')) : [],
       sources: [] // Sources removed as per user request
@@ -408,12 +451,13 @@ Search query should be: "${term} ${language} dictionary definition translation"`
           });
         } catch (error) {
           console.error(`[llmService] Failed to parse ${config.provider} response:`, error);
-          suggestion = {
-            translation: "Parse error",
-            grammar: "Could not parse AI response",
-            rootWord: term,
-            examples: []
-          };
+           suggestion = {
+             translation: "Parse error",
+             grammar: "Could not parse AI response",
+             explanation: "Could not parse AI response",
+             rootWord: term,
+             examples: []
+           };
         }
         
          // Ensure required fields exist and are strings
@@ -425,18 +469,20 @@ Search query should be: "${term} ${language} dictionary definition translation"`
              suggestion.translation = "No definition provided";
            }
          }
-         if (!suggestion.grammar) suggestion.grammar = "No grammar analysis provided";
-         if (!suggestion.rootWord) suggestion.rootWord = term;
-         if (!suggestion.examples) suggestion.examples = [];
+          if (!suggestion.grammar) suggestion.grammar = "No grammar analysis provided";
+          if (!suggestion.explanation) suggestion.explanation = "No explanation provided";
+          if (!suggestion.rootWord) suggestion.rootWord = term;
+          if (!suggestion.examples) suggestion.examples = [];
          
-          // Normalize response structure for all providers
-          const result = {
-            translation: String(suggestion.translation || ''),
-            grammar: suggestion.grammar, // Can be string or object
-            rootWord: String(suggestion.rootWord || ''),
-            examples: Array.isArray(suggestion.examples) ? suggestion.examples.map(e => String(e || '')) : [],
-            sources: [] // Sources removed as per user request
-          };
+           // Normalize response structure for all providers
+           const result = {
+             translation: String(suggestion.translation || ''),
+             grammar: suggestion.grammar, // Can be string or object
+             explanation: String(suggestion.explanation || ''),
+             rootWord: String(suggestion.rootWord || ''),
+             examples: Array.isArray(suggestion.examples) ? suggestion.examples.map(e => String(e || '')) : [],
+             sources: [] // Sources removed as per user request
+           };
         
         console.debug('[llmService] Returning suggestion from', config.provider);
         return result;

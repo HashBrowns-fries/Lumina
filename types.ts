@@ -74,6 +74,7 @@ export interface GeminiSuggestion {
   translation: string;
   definition?: string; // Primary definition from dictionary
   grammar: string | object; // Specific contextual grammar analysis (can be string or object)
+  explanation?: string; // Brief explanation of the word in context
   rootWord?: string;
   examples: string[];
   sources?: { uri: string; title: string }[];

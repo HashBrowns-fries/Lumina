@@ -307,14 +307,21 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ terms, languages, onUpd
 
                   <div className="flex items-center justify-between pt-4 mt-auto border-t border-slate-50">
                     <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map(dot => (
-                            <div 
-                            key={dot}
-                            className={`w-1.5 h-1.5 rounded-full ${dot <= (term.reps || 0) + 1 ? 'bg-indigo-500' : 'bg-slate-100'}`}
-                            />
-                        ))}
-                        </div>
+                         <div className="flex gap-1">
+                         {[1, 2, 3, 4, 5].map(dot => {
+                           // Calculate active dots based on status instead of reps
+                           const isIgnored = term.status === TermStatus.Ignored;
+                           const activeDots = isIgnored ? 0 : Math.min(Math.max(term.status, 1), 5);
+                           const isActive = dot <= activeDots;
+                           const dotColor = isIgnored ? 'bg-slate-300' : (isActive ? 'bg-indigo-500' : 'bg-slate-100');
+                           return (
+                             <div 
+                               key={dot}
+                               className={`w-1.5 h-1.5 rounded-full ${dotColor}`}
+                             />
+                           );
+                         })}
+                         </div>
                         {term.nextReview && (
                             <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
                                 <CalendarDays size={10} /> 

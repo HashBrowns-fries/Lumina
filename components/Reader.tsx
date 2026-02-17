@@ -22,9 +22,10 @@ interface ReaderProps {
   language: Language;
   aiConfig: AIConfig;
   settings: UserSettings;
+  onClose: () => void;
 }
 
-const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm, language, aiConfig, settings }) => {
+const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm, language, aiConfig, settings, onClose }) => {
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [fullContent, setFullContent] = useState<string>('');
@@ -43,6 +44,10 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   // 段落结构
   const [paragraphs, setParagraphs] = useState<string[][]>([]);
   const [allWords, setAllWords] = useState<string[]>([]);
+  // 布局调整
+  const [mainContentWidth, setMainContentWidth] = useState<number | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(null);
+  const isResizingRef = useRef<boolean>(false);
   const WORDS_PER_PAGE = 1000; // 每页1000词
   const scrollRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef<boolean>(false);
@@ -700,6 +705,78 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
     }
   }, [selection]);
 
+  // 侧边栏拖拽调整宽度处理函数 - 同时调整阅读器和侧边栏宽度
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    
+    const startX = e.clientX;
+    const defaultSidebarWidth = 400;
+    const defaultMainWidth = typeof window !== 'undefined' ? window.innerWidth - defaultSidebarWidth : 800;
+    const startMainWidth = mainContentWidth !== null ? mainContentWidth : defaultMainWidth;
+    const startSidebarWidth = sidebarWidth !== null ? sidebarWidth : defaultSidebarWidth;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      
+      // 计算鼠标移动距离
+      const deltaX = e.clientX - startX;
+      
+      // 根据移动方向调整宽度：向右移动减少侧边栏宽度，增加阅读器宽度
+      let newMainWidth = startMainWidth + deltaX;
+      let newSidebarWidth = startSidebarWidth - deltaX;
+      
+      // 约束最小宽度：阅读器最小600px，侧边栏最小250px
+      const minMainWidth = 600;
+      const minSidebarWidth = 250;
+      const maxTotalWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      
+      // 确保两个区域都不小于最小宽度
+      if (newMainWidth < minMainWidth) {
+        newMainWidth = minMainWidth;
+        newSidebarWidth = maxTotalWidth - minMainWidth;
+      } else if (newSidebarWidth < minSidebarWidth) {
+        newSidebarWidth = minSidebarWidth;
+        newMainWidth = maxTotalWidth - minSidebarWidth;
+      }
+      
+      // 确保总宽度不超过最大宽度
+      const totalWidth = newMainWidth + newSidebarWidth;
+      if (totalWidth > maxTotalWidth) {
+        const scale = maxTotalWidth / totalWidth;
+        newMainWidth = Math.floor(newMainWidth * scale);
+        newSidebarWidth = Math.floor(newSidebarWidth * scale);
+      }
+      
+      setMainContentWidth(newMainWidth);
+      setSidebarWidth(newSidebarWidth);
+    };
+    
+    const stopResizing = () => {
+      isResizingRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', stopResizing);
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }, [mainContentWidth, sidebarWidth]);
+
+  // 清理拖拽事件监听器
+  useEffect(() => {
+    return () => {
+      if (isResizingRef.current) {
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
@@ -713,12 +790,18 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
     );
   }
 
+  const defaultSidebarWidth = 400;
+  const defaultMainWidth = typeof window !== 'undefined' ? window.innerWidth - defaultSidebarWidth : 800;
+  const contentWidth = mainContentWidth !== null ? mainContentWidth : defaultMainWidth;
+  const sidebarContentWidth = sidebarWidth !== null ? sidebarWidth : defaultSidebarWidth;
+
   return (
     <div className="flex-1 flex h-full overflow-hidden bg-white">
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-8 md:p-12 lg:p-20 relative scroll-smooth"
+        className="overflow-y-auto p-8 md:p-12 lg:p-20 relative scroll-smooth"
+        style={{ width: `${contentWidth}px` }}
       >
         <div className="max-w-3xl mx-auto">
            <header className="mb-12 border-b border-slate-100 pb-8">
@@ -897,8 +980,15 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         </div>
        </div>
 
-       {/* 浮动翻页控件 */}
-       <div className="fixed bottom-8 right-[calc(420px+2rem)] z-30 flex items-center gap-3 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl px-4 py-3 shadow-xl">
+        {/* 拖拽调整宽度句柄 */}
+        <div 
+          className="w-2 cursor-ew-resize hover:bg-indigo-200/50 active:bg-indigo-300/70 transition-colors z-20"
+          onMouseDown={startResizing}
+        />
+
+        {/* 浮动翻页控件 */}
+        <div className="fixed bottom-8 z-30 flex items-center gap-3 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl px-4 py-3 shadow-xl"
+             style={{ right: `calc(${sidebarContentWidth}px + 2rem)` }}>
          <button
            onClick={() => {
              if (currentPageIndex > 0) {
@@ -962,7 +1052,8 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
          )}
        </div>
 
-       <aside className="w-[420px] border-l border-slate-200 bg-slate-50 flex flex-col shrink-0 z-20 shadow-2xl shadow-slate-200">
+        <aside className="border-l border-slate-200 bg-slate-50 flex flex-col shrink-0 z-20 shadow-2xl shadow-slate-200"
+               style={{ width: `${sidebarContentWidth}px` }}>
          {selection ? (
             <TermSidebar 
               word={selectedText}

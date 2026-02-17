@@ -156,38 +156,25 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
   };
   
   // 生成描述性标题
-  const getEntryTitle = (entry: WiktionaryEntry): string => {
+   const getEntryTitle = (entry: WiktionaryEntry): string => {
     const word = entry.word;
     const pos = entry.partOfSpeech || '';
-    const entryType = entry.entryType;
     
-    if (entryType === 'variant' && entry.rootWord && entry.rootWord.toLowerCase() !== word.toLowerCase()) {
-      const inflectionType = entry.inflectionAnalysis?.inflectionType || 'inflection';
+    if (entry.inflectionAnalysis?.inflectionType) {
+      const inflectionType = entry.inflectionAnalysis.inflectionType;
       return `${word} (${pos} · ${inflectionType})`;
     }
     
-    if (entryType === 'root') {
-      return `${word} (${pos} · root)`;
-    }
-    
     return `${word} (${pos})`;
-  };
+   };
   
   // 获取词性显示文本
   const getPosDisplayText = (entry: WiktionaryEntry): string => {
     const pos = entry.partOfSpeech || '';
-    const entryType = entry.entryType;
     
-    if (entryType === 'variant') {
-      if (entry.inflectionAnalysis?.inflectionType) {
-        const inflectionType = entry.inflectionAnalysis.inflectionType;
-        return `${pos} · ${inflectionType}`;
-      }
-      return `${pos} · inflection`;
-    }
-    
-    if (entryType === 'root') {
-      return `${pos} · root`;
+    if (entry.inflectionAnalysis?.inflectionType) {
+      const inflectionType = entry.inflectionAnalysis.inflectionType;
+      return `${pos} · ${inflectionType}`;
     }
     
     return pos;
@@ -227,7 +214,7 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
         {/* 关系指示器 - 紧凑显示 */}
         <div className="mb-3 space-y-1">
           {/* 变体形式显示根形式 */}
-          {entry.entryType === 'variant' && entry.rootWord && entry.rootWord.toLowerCase() !== entry.word.toLowerCase() && (
+          {entry.rootWord && entry.rootWord.toLowerCase() !== entry.word.toLowerCase() && (
             <div className="flex items-center gap-1 text-xs">
               <span className="text-indigo-400 font-bold">→</span>
               <span className="text-indigo-500 font-medium">Root form: </span>
@@ -236,7 +223,7 @@ const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }
           )}
           
           {/* 词根形式显示变体 */}
-          {entry.entryType === 'root' && entry.variantOf && (
+          {entry.variantOf && (
             <div className="flex items-center gap-1 text-xs">
               <span className="text-emerald-400 font-bold">↳</span>
               <span className="text-emerald-500 font-medium">Variant: </span>
@@ -456,6 +443,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     translation: '',
     status: TermStatus.Learning1,
     notes: '',
+    reps: 0,
     ...existingTerm
   });
   
@@ -464,6 +452,8 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   const [partOfSpeechFilter, setPartOfSpeechFilter] = useState<string>('all');
   const [showAllDictionaryEntries, setShowAllDictionaryEntries] = useState(false);
   const [expandedPosGroups, setExpandedPosGroups] = useState<Set<string>>(new Set());
+  
+  const sidebarRef = useRef<HTMLFormElement>(null);
   
   // 过滤按钮颜色映射
   const filterButtonColors: Record<string, string> = {
@@ -554,91 +544,122 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   }, [word]);
 
   // Helper function to render grammar analysis in a user-friendly format
-  const renderGrammarAnalysis = (grammar: any): React.ReactNode => {
-    if (!grammar) return 'No grammar analysis available';
-    
-    if (typeof grammar === 'string') {
-      return <p className="text-sm text-slate-700 leading-relaxed font-medium">{grammar}</p>;
-    }
-    
-    if (typeof grammar === 'object' && grammar !== null) {
-      // Check if it's the DeepSeek object format
-      if (grammar.morphologicalForm || grammar.tense || grammar.mood || grammar.case) {
-        return (
-          <div className="space-y-2">
-            {grammar.morphologicalForm && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Form:</span>
-                <span className="flex-1 text-slate-700">{grammar.morphologicalForm}</span>
-              </div>
-            )}
-            {grammar.tense && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Tense:</span>
-                <span className="flex-1 text-slate-700">{grammar.tense}</span>
-              </div>
-            )}
-            {grammar.mood && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Mood:</span>
-                <span className="flex-1 text-slate-700">{grammar.mood}</span>
-              </div>
-            )}
-            {grammar.case && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Case:</span>
-                <span className="flex-1 text-slate-700">{grammar.case}</span>
-              </div>
-            )}
-            {(grammar.separablePrefix === 'Yes' || grammar.separablePrefix === true) && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Separable:</span>
-                <span className="flex-1 text-slate-700">Yes ({grammar.separablePrefix === 'Yes' ? 'Prefix separates' : 'Has separable prefix'})</span>
-              </div>
-            )}
-            {(grammar.compound === 'Yes' || grammar.compound === true) && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Compound:</span>
-                <span className="flex-1 text-slate-700">Yes ({grammar.compound === 'Yes' ? 'Compound verb' : 'Compound word'})</span>
-              </div>
-            )}
-            {grammar.gender && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Gender:</span>
-                <span className="flex-1 text-slate-700">{grammar.gender}</span>
-              </div>
-            )}
-            {grammar.number && (
-              <div className="flex">
-                <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Number:</span>
-                <span className="flex-1 text-slate-700">{grammar.number}</span>
-              </div>
-            )}
-          </div>
-        );
-      }
-      
-      // Fallback: show as JSON
-      return (
-        <pre className="text-xs bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
-          {JSON.stringify(grammar, null, 2)}
-        </pre>
-      );
-    }
-    
-    return <p className="text-sm text-slate-700 leading-relaxed font-medium">Invalid grammar format</p>;
-  };
+   const renderGrammarAnalysis = (grammar: any): React.ReactNode => {
+     if (!grammar) return 'No grammar analysis available';
+     
+     if (typeof grammar === 'string') {
+       return <p className="text-sm text-slate-700 leading-relaxed font-medium">{grammar}</p>;
+     }
+     
+     if (typeof grammar === 'object' && grammar !== null) {
+       // Check if it's the DeepSeek object format
+       if (grammar.morphologicalForm || grammar.tense || grammar.mood || grammar.case || grammar.partOfSpeech) {
+         return (
+           <div className="space-y-2">
+             {/* Part of Speech (always show if available) */}
+             {grammar.partOfSpeech && (
+               <div className="flex items-center">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Part of Speech:</span>
+                 <span className="flex-1">
+                   <span className="inline-block px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                     {grammar.partOfSpeech}
+                   </span>
+                 </span>
+               </div>
+             )}
+             {grammar.morphologicalForm && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Form:</span>
+                 <span className="flex-1 text-slate-700">{grammar.morphologicalForm}</span>
+               </div>
+             )}
+             {grammar.tense && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Tense:</span>
+                 <span className="flex-1 text-slate-700">{grammar.tense}</span>
+               </div>
+             )}
+             {grammar.mood && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Mood:</span>
+                 <span className="flex-1 text-slate-700">{grammar.mood}</span>
+               </div>
+             )}
+             {grammar.case && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Case:</span>
+                 <span className="flex-1 text-slate-700">{grammar.case}</span>
+               </div>
+             )}
+             {(grammar.separablePrefix === 'Yes' || grammar.separablePrefix === true) && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Separable:</span>
+                 <span className="flex-1 text-slate-700">Yes ({grammar.separablePrefix === 'Yes' ? 'Prefix separates' : 'Has separable prefix'})</span>
+               </div>
+             )}
+             {(grammar.compound === 'Yes' || grammar.compound === true) && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Compound:</span>
+                 <span className="flex-1 text-slate-700">Yes ({grammar.compound === 'Yes' ? 'Compound verb' : 'Compound word'})</span>
+               </div>
+             )}
+             {grammar.gender && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Gender:</span>
+                 <span className="flex-1 text-slate-700">{grammar.gender}</span>
+               </div>
+             )}
+             {grammar.number && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Number:</span>
+                 <span className="flex-1 text-slate-700">{grammar.number}</span>
+               </div>
+             )}
+             {grammar.voice && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Voice:</span>
+                 <span className="flex-1 text-slate-700">{grammar.voice}</span>
+               </div>
+             )}
+             {grammar.person && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Person:</span>
+                 <span className="flex-1 text-slate-700">{grammar.person}</span>
+               </div>
+             )}
+             {grammar.degree && (
+               <div className="flex">
+                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Degree:</span>
+                 <span className="flex-1 text-slate-700">{grammar.degree}</span>
+               </div>
+             )}
+           </div>
+         );
+       }
+       
+       // Fallback: show as JSON
+       return (
+         <pre className="text-xs bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
+           {JSON.stringify(grammar, null, 2)}
+         </pre>
+       );
+     }
+     
+     return <p className="text-sm text-slate-700 leading-relaxed font-medium">Invalid grammar format</p>;
+   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.debug('[TermSidebar] Component unmounting', {
-        currentWord: word,
-        analyzedWord: analyzedWordRef.current
-      });
-      isMountedRef.current = false;
-    };
-  }, [word]);
+
+
+   // Cleanup on unmount
+   useEffect(() => {
+     return () => {
+       console.debug('[TermSidebar] Component unmounting', {
+         currentWord: word,
+         analyzedWord: analyzedWordRef.current
+       });
+       isMountedRef.current = false;
+     };
+   }, [word]);
 
   const handleAiSuggestLocal = useCallback(async (targetWord: string, targetSentence: string) => {
     console.debug('[TermSidebar] handleAiSuggestLocal called:', {
@@ -952,7 +973,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
       // Preserve SRS data if updating
       interval: existingTerm?.interval,
       easeFactor: existingTerm?.easeFactor,
-      reps: existingTerm?.reps,
+       reps: formData.reps ?? existingTerm?.reps ?? 0,
       nextReview: existingTerm?.nextReview,
       lastReview: existingTerm?.lastReview,
     } as Term;
@@ -970,7 +991,8 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
             translation: '-> ' + mainTerm.text,
             status: mainTerm.status, 
             notes: '',
-            parentId: parentKey
+            parentId: parentKey,
+            reps: mainTerm.reps
         };
         // Ensure Main Term doesn't point to itself
         mainTerm.parentId = undefined;
@@ -987,9 +1009,14 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   const parentTerm = formData.parentId ? allTerms[formData.parentId] : null;
   const isRootMode = (formData.text || '').toLowerCase() !== word.toLowerCase();
 
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full bg-white shadow-2xl animate-in slide-in-from-right-4 duration-300">
-      <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
+   return (
+     <form 
+       ref={sidebarRef}
+       onSubmit={handleSubmit} 
+       className="flex flex-col h-full bg-white shadow-2xl animate-in slide-in-from-right-4 duration-300 relative"
+      >
+       
+       <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
         <div className="flex flex-col flex-1 min-w-0 pr-4">
           <h2 className="font-black text-2xl text-slate-900 flex items-center gap-2 group">
             <span className="truncate">{word}</span>
@@ -1110,10 +1137,25 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                                 <div className="text-sm text-slate-700 leading-relaxed font-medium">
                                    {renderGrammarAnalysis(aiSuggestion?.grammar)}
                                 </div>
-                              </div>
-                         </div>
+                               </div>
+                          </div>
 
-                         {/* Examples */}
+                          {/* Explanation */}
+                          {aiSuggestion?.explanation && (
+                            <div className="flex items-start gap-4 pt-5 border-t border-slate-200">
+                              <div className="shrink-0 mt-1 bg-emerald-500/20 p-2 rounded-xl text-emerald-400 border border-emerald-500/30">
+                                <BookOpen size={16} />
+                              </div>
+                              <div>
+                                <h4 className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1.5">Explanation</h4>
+                                <div className="text-sm text-slate-700 leading-relaxed font-medium">
+                                  {aiSuggestion.explanation}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Examples */}
                          {aiSuggestion?.examples && aiSuggestion.examples.length > 0 && (
                             <div className="space-y-3 pt-5 border-t border-slate-200">
                              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -1351,10 +1393,22 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Learning Level</label>
           <div className="flex justify-between items-center bg-slate-50 p-2 rounded-2xl border border-slate-100 gap-1">
             {[1, 2, 3, 4, 5, 99].map(s => (
-              <button
+               <button
                 key={s}
                 type="button"
-                onClick={() => setFormData(prev => ({ ...prev, status: s as TermStatus }))}
+                onClick={() => {
+                  const newStatus = s as TermStatus;
+                  // Map status to reps to keep them synchronized
+                  let newReps = 0;
+                  if (newStatus === TermStatus.WellKnown) {
+                    newReps = 4; // reps >= 4 corresponds to WellKnown status
+                  } else if (newStatus >= TermStatus.Learning1 && newStatus <= TermStatus.Learning4) {
+                    newReps = newStatus - 1; // Learning1 (1) -> reps 0, Learning4 (4) -> reps 3
+                  } else if (newStatus === TermStatus.Ignored) {
+                    newReps = 0; // Ignored terms have 0 reps
+                  }
+                  setFormData(prev => ({ ...prev, status: newStatus, reps: newReps }));
+                }}
                 className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all
                   ${formData.status === s 
                     ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50' 

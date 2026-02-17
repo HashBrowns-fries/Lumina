@@ -137,25 +137,35 @@ class SQLiteDictionaryService {
     // Same normalization logic as Python conversion script
     if (!word) return '';
 
-    let normalized = word.toLowerCase();
+    // Preserve original case for dictionary lookups
+    let normalized = word;
 
-    // Handle German special characters
-    const replacements = {
-      'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss',
-      'é': 'e', 'è': 'e', 'ê': 'e',
-      'á': 'a', 'à': 'a', 'â': 'a',
-      'ó': 'o', 'ò': 'o', 'ô': 'o',
-      'ú': 'u', 'ù': 'u', 'û': 'u',
-      'ï': 'i', 'î': 'i',
-      'ç': 'c', 'ñ': 'n'
-    };
+    // Handle German special characters (case-insensitive)
+    const replacements = [
+      ['ä', 'ae'], ['Ä', 'Ae'],
+      ['ö', 'oe'], ['Ö', 'Oe'],
+      ['ü', 'ue'], ['Ü', 'Ue'],
+      ['ß', 'ss'], ['ẞ', 'Ss'],
+      ['é', 'e'], ['è', 'e'], ['ê', 'e'],
+      ['É', 'E'], ['È', 'E'], ['Ê', 'E'],
+      ['á', 'a'], ['à', 'a'], ['â', 'a'],
+      ['Á', 'A'], ['À', 'A'], ['Â', 'A'],
+      ['ó', 'o'], ['ò', 'o'], ['ô', 'o'],
+      ['Ó', 'O'], ['Ò', 'O'], ['Ô', 'O'],
+      ['ú', 'u'], ['ù', 'u'], ['û', 'u'],
+      ['Ú', 'U'], ['Ù', 'U'], ['Û', 'U'],
+      ['ï', 'i'], ['î', 'i'],
+      ['Ï', 'I'], ['Î', 'I'],
+      ['ç', 'c'], ['Ç', 'C'],
+      ['ñ', 'n'], ['Ñ', 'N']
+    ];
 
-    for (const [oldChar, newChar] of Object.entries(replacements)) {
+    for (const [oldChar, newChar] of replacements) {
       normalized = normalized.replace(new RegExp(oldChar, 'g'), newChar);
     }
 
     // Remove all non-alphanumeric characters (except hyphens)
-    normalized = normalized.replace(/[^a-z0-9-]/g, '');
+    normalized = normalized.replace(/[^a-zA-Z0-9-]/g, '');
 
     return normalized;
   }
@@ -203,10 +213,39 @@ class SQLiteDictionaryService {
     }
   }
 
+  getEntryPriorityScore(match) {
+    let score = 0;
+    
+    // Higher priority for base forms
+    if (match.isBaseForm) {
+      score += 100;
+    }
+    
+    // Higher priority for non-inflections
+    if (!match.isInflection) {
+      score += 50;
+    }
+    
+    // Priority for entries with etymology
+    if (match.entry.etymology_text && match.entry.etymology_text.trim()) {
+      score += 30;
+    }
+    
+    // Priority for entries with pronunciation
+    if (match.entry.pronunciation && match.entry.pronunciation.trim()) {
+      score += 20;
+    }
+    
+    // Lower ID might indicate main entry (but this is weak)
+    score += Math.max(0, 1000 - match.entry.id) / 1000;
+    
+    return score;
+  }
+
   async findAllMatches(word, languageCode) {
     const db = await this.getConnection(languageCode);
     const normalizedWord = this.normalizeWord(word);
-    const matches = [];
+    let matches = [];
 
     try {
       // First find all form matches (inflection forms)
@@ -215,25 +254,44 @@ class SQLiteDictionaryService {
         SELECT DISTINCT d.*, f.tags, f.form as inflection_form 
         FROM dictionary d
         JOIN forms f ON d.id = f.dictionary_id
-        WHERE f.normalized_form = ? OR f.form = ?
+        WHERE (f.normalized_form = ? OR f.form = ?)
+        AND f.form NOT LIKE '%''%'  -- Exclude forms with apostrophes (like "Haus'")
         ORDER BY d.pos, d.word
       `, [normalizedWord, word]);
 
       if (formMatches.length > 0) {
         console.log(`[SQLiteDictionary] Found ${formMatches.length} form matches`);
+        // Use a Map to deduplicate by entry id and tags combination
+        const uniqueMatches = new Map();
         for (const formMatch of formMatches) {
-          matches.push({ 
-            entry: {
-              id: formMatch.id,
-              word: formMatch.word,
-              normalized_word: formMatch.normalized_word,
-              pos: formMatch.pos,
-              etymology_text: formMatch.etymology_text
-            }, 
-            isInflection: true,
-            formTags: formMatch.tags,
-            inflectionForm: formMatch.inflection_form
-          });
+          let isBaseForm = this.isBaseForm(formMatch.tags);
+          // Special case: if form is identical to the base word but tagged as inflection,
+          // it's likely a data error (e.g., "Haus" tagged as "genitive")
+          if (!isBaseForm && formMatch.inflection_form === formMatch.word) {
+            console.log(`[SQLiteDictionary] Correcting data error: "${formMatch.inflection_form}" identical to base word "${formMatch.word}" but tagged as inflection, treating as base form`);
+            isBaseForm = true;
+          }
+          const key = `${formMatch.id}:${formMatch.tags || ''}:${isBaseForm}`;
+          if (!uniqueMatches.has(key)) {
+            uniqueMatches.set(key, { 
+              entry: {
+                id: formMatch.id,
+                word: formMatch.word,
+                normalized_word: formMatch.normalized_word,
+                pos: formMatch.pos,
+                etymology_text: formMatch.etymology_text
+              }, 
+              isInflection: !isBaseForm,
+              isBaseForm: isBaseForm,
+              formTags: formMatch.tags,
+              inflectionForm: formMatch.inflection_form
+            });
+          }
+        }
+        
+        console.log(`[SQLiteDictionary] After deduplication: ${uniqueMatches.size} unique form matches`);
+        for (const match of uniqueMatches.values()) {
+          matches.push(match);
         }
       } else {
         console.log(`[SQLiteDictionary] No form matches found for "${word}"`);
@@ -251,12 +309,72 @@ class SQLiteDictionaryService {
         // Add dictionary matches that are not already covered by form matches
         // (by checking if the dictionary entry is already in matches)
         const existingIds = new Set(matches.map(m => m.entry.id));
+        
+        // Also check if we already have a form match for this exact word as an inflection
+        // (e.g., "Hauses" as inflection of "Haus" should not also appear as separate dictionary entry)
+        const hasInflectionMatch = matches.some(m => 
+          m.isInflection && !m.isBaseForm && m.inflectionForm === word
+        );
+        
         for (const entry of dictEntries) {
-          if (!existingIds.has(entry.id)) {
-            matches.push({ entry, isInflection: false });
+          // Skip if this entry is already covered by a form match
+          if (existingIds.has(entry.id)) {
+            continue;
+          }
+          
+          // Skip if we already have an inflection match for this exact word
+          // (e.g., "Hauses" should be shown as inflection of "Haus", not as separate entry)
+          if (hasInflectionMatch && entry.word === word) {
+            console.log(`[SQLiteDictionary] Skipping dictionary entry for "${word}" because it's already covered as an inflection`);
+            continue;
+          }
+          
+          matches.push({ entry, isInflection: false, isBaseForm: true });
+        }
+      }
+
+      // Final deduplication: keep different inflection forms with different tags
+      const deduplicatedMatches = [];
+      const entryKeyMap = new Map(); // key -> best match index
+      
+      for (const match of matches) {
+        const word = match.entry.word;
+        const pos = match.entry.pos || '';
+        const tags = match.formTags || '';
+        
+        // Create key: for inflections, include tags to distinguish different forms
+        // For base forms, just use word:pos since tags don't matter
+        let key;
+        if (match.isInflection && !match.isBaseForm) {
+          key = `${word}:${pos}:${tags}`;
+        } else {
+          key = `${word}:${pos}`;
+        }
+        
+        if (!entryKeyMap.has(key)) {
+          entryKeyMap.set(key, deduplicatedMatches.length);
+          deduplicatedMatches.push(match);
+        } else {
+          const existingIndex = entryKeyMap.get(key);
+          const existingMatch = deduplicatedMatches[existingIndex];
+          
+          // Choose the better entry based on priority
+          // 1. Prefer root/base form over variants
+          // 2. Prefer entries with etymology
+          // 3. Prefer entries with pronunciation
+          // 4. Prefer lower ID (assume main entry)
+          
+          const currentScore = this.getEntryPriorityScore(match);
+          const existingScore = this.getEntryPriorityScore(existingMatch);
+          
+          if (currentScore > existingScore) {
+            deduplicatedMatches[existingIndex] = match;
           }
         }
       }
+      
+      console.log(`[SQLiteDictionary] After deduplication: ${deduplicatedMatches.length} unique entries (was ${matches.length})`);
+      matches = deduplicatedMatches;
 
       console.log(`[SQLiteDictionary] Total matches found: ${matches.length}`);
       return matches;
@@ -326,7 +444,7 @@ class SQLiteDictionaryService {
     }
   }
 
-  convertToWiktionaryEntry(entry, details, language, originalWord, isInflection, formTags = null) {
+  convertToWiktionaryEntry(entry, details, language, originalWord, isInflection, formTags = null, isBaseForm = false) {
     const definitions = details.senses.map(sense => sense.gloss);
     const examples = details.senses
       .map(sense => sense.example)
@@ -342,37 +460,15 @@ class SQLiteDictionaryService {
       // Skip audio URLs, only show IPA
     }
 
-    // Determine entry type
-    let entryType = 'normal';
-    let variantOf = undefined;
-    let actualIsInflection = isInflection;
+    // Determine if this is actually an inflection or base form
+    const actualIsInflection = isInflection && !isBaseForm;
     
-    // Check if this is actually a base form (e.g., infinitive, nominative singular)
-    if (isInflection && formTags) {
-      console.log(`[SQLiteDictionary] Checking if form is base: tags="${formTags}", word="${entry.word}"`);
-      const isBase = this.isBaseForm(formTags);
-      console.log(`[SQLiteDictionary] isBaseForm result: ${isBase}`);
-      if (isBase) {
-        actualIsInflection = false;
-        entryType = 'normal';
-        console.log(`[SQLiteDictionary] Setting as base form (normal entry): ${entry.word}`);
-      } else {
-        entryType = 'variant';
-        console.log(`[SQLiteDictionary] Setting as variant form: ${entry.word}`);
-        // For variant forms, rootWord is the dictionary form (entry.word)
-        // variantOf is not set for variants
-      }
-    } else if (!isInflection && originalWord.toLowerCase() !== entry.word.toLowerCase()) {
-      // This is a root form that was found for a different query word
-      entryType = 'root';
-      variantOf = originalWord;
-      console.log(`[SQLiteDictionary] Setting as root form for variant: ${entry.word} (variant of: ${originalWord})`);
-    }
-    
-    // For variant forms, we need to provide inflection analysis
+    // Always include tags if available
     let inflectionAnalysis = undefined;
-    if (actualIsInflection) {
-      // Parse form tags to determine inflection type
+    let tags = formTags || undefined;
+    
+    if (actualIsInflection && formTags) {
+      // Parse form tags to display them directly
       let inflectionType = 'inflection';
       if (formTags) {
         try {
@@ -396,11 +492,43 @@ class SQLiteDictionaryService {
       };
     }
     
+    // Determine entry type
+    let entryType = 'normal';
+    if (actualIsInflection) {
+      entryType = 'variant';
+    } else if (isBaseForm) {
+      entryType = 'root';
+    }
+
+    // Determine which word to display
+    const displayWord = actualIsInflection ? originalWord : entry.word;
+    
+    // Create root entry for inflection forms
+    let rootEntry = undefined;
+    if (actualIsInflection && entry.word && entry.word !== displayWord) {
+      rootEntry = {
+        word: entry.word,
+        language: language.name,
+        partOfSpeech: entry.pos || undefined,
+        definitions: definitions.length > 0 ? definitions : [`${entry.pos || 'word'}: ${entry.word}`],
+        translations: [], // SQLite dictionary doesn't contain translations
+        etymology: entry.etymology_text || undefined,
+        pronunciation: pronunciation || undefined,
+        examples: examples.length > 0 ? examples : [],
+        synonyms: details.synonyms,
+        antonyms: details.antonyms,
+        isInflection: false,
+        entryType: 'root',
+        tags: undefined,
+        inflectionAnalysis: undefined
+      };
+    }
+    
     return {
-      word: entry.word,
+      word: displayWord,
       language: language.name,
       partOfSpeech: entry.pos || undefined,
-      definitions: definitions.length > 0 ? definitions : [`${entry.pos || 'word'}: ${entry.word}`],
+      definitions: definitions.length > 0 ? definitions : [`${entry.pos || 'word'}: ${displayWord}`],
       translations: [], // SQLite dictionary doesn't contain translations
       etymology: entry.etymology_text || undefined,
       pronunciation: pronunciation || undefined,
@@ -410,9 +538,10 @@ class SQLiteDictionaryService {
       isInflection: actualIsInflection,
       inflectionForm: actualIsInflection ? originalWord : undefined,
       rootWord: actualIsInflection ? entry.word : undefined,
-      entryType: entryType,
-      variantOf: variantOf,
-      inflectionAnalysis: inflectionAnalysis
+      rootEntry: rootEntry,
+      tags: tags,
+      inflectionAnalysis: inflectionAnalysis,
+      entryType: entryType // 'variant', 'root', 'normal'
     };
   }
 
@@ -447,18 +576,42 @@ class SQLiteDictionaryService {
 
       console.log(`[SQLiteDictionary] Found ${matchResults.length} matches for:`, word);
       
-      // Get detailed information for each match and convert to entries
+       // Get detailed information for each match and convert to entries
       const entries = [];
+      const rootEntriesMap = new Map(); // Track root entries to avoid duplicates
+      
       for (const matchResult of matchResults) {
-        const { entry: dictEntry, isInflection, formTags, inflectionForm } = matchResult;
-        console.log('[SQLiteDictionary] Processing entry:', dictEntry.word, 'isInflection:', isInflection, 'formTags:', formTags);
+        const { entry: dictEntry, isInflection, formTags, inflectionForm, isBaseForm = false } = matchResult;
+        console.log('[SQLiteDictionary] Processing entry:', dictEntry.word, 'isInflection:', isInflection, 'isBaseForm:', isBaseForm, 'formTags:', formTags);
         
         // Get detailed information
         const details = await this.getEntryDetails(dictEntry.id, language.id);
         
         // Convert to Wiktionary entry format
-        const wiktionaryEntry = this.convertToWiktionaryEntry(dictEntry, details, language, word, isInflection, formTags);
+        const wiktionaryEntry = this.convertToWiktionaryEntry(dictEntry, details, language, word, isInflection, formTags, isBaseForm);
         entries.push(wiktionaryEntry);
+        
+        // Track root entries for inclusion as standalone entries
+        if (wiktionaryEntry.rootEntry) {
+          const rootKey = `${wiktionaryEntry.rootEntry.word}:${wiktionaryEntry.rootEntry.partOfSpeech || ''}`;
+          if (!rootEntriesMap.has(rootKey)) {
+            rootEntriesMap.set(rootKey, wiktionaryEntry.rootEntry);
+          }
+        }
+      }
+      
+      // Add root entries as standalone entries if they're not already in the list
+      for (const rootEntry of rootEntriesMap.values()) {
+        // Check if this root entry already exists in entries
+        const alreadyExists = entries.some(entry => 
+          entry.word === rootEntry.word && 
+          entry.partOfSpeech === rootEntry.partOfSpeech
+        );
+        
+        if (!alreadyExists) {
+          console.log(`[SQLiteDictionary] Adding root entry as standalone: ${rootEntry.word} (${rootEntry.partOfSpeech})`);
+          entries.push(rootEntry);
+        }
       }
 
       const response = {
