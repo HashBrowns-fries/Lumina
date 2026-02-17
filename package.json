@@ -1,5 +1,5 @@
 {
-  "name": "luminous-lute",
+  "name": "lumina",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,11 +8,15 @@
     "dev:server": "cd server && npm run dev",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "dev:tauri": "concurrently \"npm run dev\" \"npm run dev:server\" \"tauri dev\"",
+    "build:tauri": "tauri build"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
     "@lingo-reader/epub-parser": "^0.4.5",
+    "@tauri-apps/api": "^2.10.1",
     "@types/dompurify": "^3.0.5",
     "@types/sqlite3": "^3.1.11",
     "cors": "^2.8.6",
@@ -30,6 +34,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
     "@types/node": "^22.14.0",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",

@@ -31,6 +31,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   // 阅读进度映射表: docId -> progress (0-1)
   const [readingProgressMap, setReadingProgressMap] = useState<Record<string, number>>({});
+  // 待处理的文件上传
+  const [pendingFile, setPendingFile] = useState<{
+    file: File;
+    type: TextSourceType;
+    content: string;
+    parsedData?: any;
+  } | null>(null);
 
   // 加载存储的文档和阅读进度
   const loadDocuments = async () => {
@@ -94,39 +101,103 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
     if (!newText.title || !newText.content) return;
     
     const id = `${Date.now()}`;
+    const languageId = newText.languageId;
     
-    // 同时保持向后兼容（现有系统）
-    await saveLargeTextContent(id, newText.content);
-    
-    // 使用新存储系统
-    try {
-      await storePlainTextDocument(
-        new File([newText.content], `${newText.title}.txt`, { type: 'text/plain' }),
-        newText.title,
-        newText.content,
-        newText.languageId,
-        id
-      );
-    } catch (error) {
-      console.error('[LibraryView] Failed to store document in new system:', error);
-      // 继续执行，使用旧系统作为后备
-    }
+    // 如果有待处理文件，使用文件存储逻辑
+    if (pendingFile) {
+      const { file, type, content, parsedData } = pendingFile;
+      
+      // 同时保持向后兼容（现有系统）
+      await saveLargeTextContent(id, content);
+      
+      // 使用新存储系统
+      try {
+        if (type === 'pdf') {
+          // 对于PDF，我们需要重新提取页面文本用于存储
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+          const pages: { pageIndex: number; text: string }[] = [];
+          
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(' ');
+            pages.push({ pageIndex: i - 1, text: pageText });
+          }
+          
+          await storePdfDocument(file, pdf, pages, id);
+        } else if (type === 'epub') {
+          // 使用新解析器存储章节
+          await storeEpubDocument(file, id, languageId);
+          // 同时存储纯文本版本用于向后兼容
+          await storePlainTextDocument(
+            file,
+            newText.title,
+            content,
+            languageId,
+            id
+          );
+        } else {
+          // 纯文本
+          await storePlainTextDocument(
+            file,
+            newText.title,
+            content,
+            languageId,
+            id
+          );
+        }
+      } catch (storageError) {
+        console.error('[LibraryView] Failed to store document in new system:', storageError);
+        // 继续使用旧系统
+      }
+      
+      onAdd({
+        id,
+        title: newText.title,
+        content: '', 
+        languageId,
+        createdAt: Date.now(),
+        sourceType: type,
+        progress: 0
+      });
+      
+    } else {
+      // 纯文本粘贴
+      // 同时保持向后兼容（现有系统）
+      await saveLargeTextContent(id, newText.content);
+      
+      // 使用新存储系统
+      try {
+        await storePlainTextDocument(
+          new File([newText.content], `${newText.title}.txt`, { type: 'text/plain' }),
+          newText.title,
+          newText.content,
+          languageId,
+          id
+        );
+      } catch (error) {
+        console.error('[LibraryView] Failed to store document in new system:', error);
+        // 继续执行，使用旧系统作为后备
+      }
 
-    onAdd({
-      id,
-      title: newText.title,
-      content: '', // Content is now stored in IndexedDB, metadata here
-      languageId: newText.languageId,
-      createdAt: Date.now(),
-      sourceType: 'plain',
-      progress: 0
-    });
+      onAdd({
+        id,
+        title: newText.title,
+        content: '', // Content is now stored in IndexedDB, metadata here
+        languageId,
+        createdAt: Date.now(),
+        sourceType: 'plain',
+        progress: 0
+      });
+    }
     
     // 重新加载文档列表
     await loadDocuments();
     
     setShowAdd(false);
     setNewText({ title: '', content: '', languageId: languages[0]?.id || '' });
+    setPendingFile(null);
   };
 
     // Helper function to fix common XML/XHTML parsing issues
@@ -634,10 +705,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
     if (!file) return;
 
     setIsProcessing(true);
-    const id = `${Date.now()}`;
-     let content = '';
-     let type: TextSourceType = 'plain';
-     let storedWithNewParser = false;
+    let content = '';
+    let type: TextSourceType = 'plain';
+    let parsedData: any = null;
 
     try {
       if (file.type === 'application/pdf') {
@@ -651,101 +721,60 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
         }
         content = fullText;
-        } else if (file.name.endsWith('.epub')) {
-          type = 'epub';
+        parsedData = { pdf, arrayBuffer };
+      } else if (file.name.endsWith('.epub')) {
+        type = 'epub';
+        
+        try {
+          console.debug('[LibraryView] Parsing EPUB file with new parser');
+          const result = await parseEpubFile(file);
           
-          try {
-            console.debug('[LibraryView] Parsing EPUB file with new parser');
-            const result = await parseEpubFile(file);
-            
-            // 存储章节到新存储系统
-            await storeEpubDocument(file, id);
-            
-            // 生成纯文本内容用于向后兼容
-            const plainText = result.chapters.map(ch => extractPlainText(ch.content)).join('\n\n');
-            content = plainText;
-            
-            console.debug(`[LibraryView] EPUB parsed successfully: ${result.chapters.length} chapters extracted`);
-            
-          } catch (error) {
-            console.error('[LibraryView] EPUB parsing failed:', error);
-            
-            let errorMsg = "Failed to parse EPUB file.\n\n";
-            errorMsg += `File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)\n`;
-            errorMsg += "Error: " + (error instanceof Error ? error.message : 'Unknown error') + "\n\n";
-            errorMsg += "Possible reasons:\n";
-            errorMsg += "1. The file may be encrypted or DRM-protected\n";
-            errorMsg += "2. The file format may not be a standard EPUB\n";
-            errorMsg += "3. The file may be corrupted\n\n";
-            errorMsg += "Please try a different EPUB file or convert it to plain text/PDF.";
-            
-            alert(errorMsg);
-            setIsProcessing(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-            return;
-          }
+          // 生成纯文本内容用于向后兼容
+          const plainText = result.chapters.map(ch => extractPlainText(ch.content)).join('\n\n');
+          content = plainText;
+          parsedData = result;
+          
+          console.debug(`[LibraryView] EPUB parsed successfully: ${result.chapters.length} chapters extracted`);
+          
+        } catch (error) {
+          console.error('[LibraryView] EPUB parsing failed:', error);
+          
+          let errorMsg = "Failed to parse EPUB file.\n\n";
+          errorMsg += `File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)\n`;
+          errorMsg += "Error: " + (error instanceof Error ? error.message : 'Unknown error') + "\n\n";
+          errorMsg += "Possible reasons:\n";
+          errorMsg += "1. The file may be encrypted or DRM-protected\n";
+          errorMsg += "2. The file format may not be a standard EPUB\n";
+          errorMsg += "3. The file may be corrupted\n\n";
+          errorMsg += "Please try a different EPUB file or convert it to plain text/PDF.";
+          
+          alert(errorMsg);
+          setIsProcessing(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          return;
         }
+      }
 
-        if (content && content.trim()) {
-         // 同时保持向后兼容（现有系统）
-         await saveLargeTextContent(id, content);
-         
-         // 使用新存储系统
-         try {
-           if (type === 'pdf') {
-             // 对于PDF，我们需要重新提取页面文本用于存储
-             const arrayBuffer = await file.arrayBuffer();
-             const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-             const pages: { pageIndex: number; text: string }[] = [];
-             
-             for (let i = 1; i <= pdf.numPages; i++) {
-               const page = await pdf.getPage(i);
-               const textContent = await page.getTextContent();
-               const pageText = textContent.items.map((item: any) => item.str).join(' ');
-               pages.push({ pageIndex: i - 1, text: pageText });
-             }
-             
-              await storePdfDocument(file, pdf, pages, id);
-            } else if (type === 'epub') {
-              // 如果已经通过新解析器存储了章节，则跳过纯文本存储
-              if (!storedWithNewParser) {
-                await storePlainTextDocument(
-                  file,
-                  file.name.replace(/\.[^/.]+$/, ""),
-                  content,
-                  languages[0]?.id,
-                  id
-                );
-              }
-           } else {
-              // 纯文本
-              await storePlainTextDocument(
-                file,
-                file.name.replace(/\.[^/.]+$/, ""),
-                content,
-                languages[0]?.id,
-                id
-              );
-           }
-         } catch (storageError) {
-           console.error('[LibraryView] Failed to store document in new system:', storageError);
-           // 继续使用旧系统
-         }
-         
-         onAdd({
-           id,
-           title: file.name.replace(/\.[^/.]+$/, ""),
-           content: '', 
-           languageId: languages[0]?.id || '',
-           createdAt: Date.now(),
-           sourceType: type,
-           progress: 0
-         });
-         
-         // 重新加载文档列表
-         await loadDocuments();
-         
-         console.log(`[LibraryView] File processed successfully: ${content.length} characters extracted`);
+      if (content && content.trim()) {
+        // 设置待处理文件
+        setPendingFile({
+          file,
+          type,
+          content,
+          parsedData
+        });
+        
+        // 填充表单
+        setNewText(prev => ({
+          ...prev,
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          content: content
+        }));
+        
+        // 显示表单让用户选择语言
+        setShowAdd(true);
+        
+        console.log(`[LibraryView] File processed successfully: ${content.length} characters extracted, waiting for user to confirm language`);
       } else if (type !== 'epub') {
         // Only show generic error for non-EPUB files (EPUB errors handled above)
         console.error("[LibraryView] No text content extracted from file:", {
@@ -757,7 +786,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
         alert("No text content could be extracted from this file. It may be encrypted, corrupted, or contain only non-text content.");
       }
     } catch (err) {
-       console.error("[LibraryView] File processing error:", err);
+      console.error("[LibraryView] File processing error:", err);
       alert("Failed to process file. It might be encrypted or corrupted.");
     } finally {
       setIsProcessing(false);
@@ -801,7 +830,9 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
 
         {showAdd && (
           <div className="mb-12 bg-white rounded-3xl border border-slate-200 p-8 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-top-4 duration-300">
-            <h2 className="text-xl font-bold mb-6 text-slate-800">New Plain Text</h2>
+             <h2 className="text-xl font-bold mb-6 text-slate-800">
+               {pendingFile ? `New ${pendingFile.type.toUpperCase()}` : 'New Plain Text'}
+             </h2>
             <form onSubmit={handleAddSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">

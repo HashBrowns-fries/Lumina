@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIConfig, GeminiSuggestion } from "../types";
-import { queryWiktionary, getWiktionaryUrl, WiktionaryResponse } from "./wiktionaryService";
+import { queryWiktionary, getWiktionaryUrl, WiktionaryResponse } from "./wiktionaryService.ts";
 
 /**
  * 将语言名称映射到语言代码

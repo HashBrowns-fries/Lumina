@@ -8,7 +8,8 @@ import { parseEpubFile, EpubParseResult } from './epubParser';
  */
 export async function storeEpubDocument(
   file: File,
-  docId?: string
+  docId?: string,
+  language?: string
 ): Promise<string> {
   const finalDocId = docId || `${file.name}_${Date.now()}`; // 使用提供的ID或生成新ID
   
@@ -24,7 +25,7 @@ export async function storeEpubDocument(
     id: finalDocId,
     title: metadata.title || file.name.replace(/\.epub$/i, ''),
     author,
-    language: metadata.language,
+    language: language || metadata.language,
     format: 'epub',
     coverUrl,
     totalChapters: chapters.length,

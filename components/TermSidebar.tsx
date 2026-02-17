@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef, useCallback, FC, ReactNode, FormEve
 import { Term, TermStatus, Language, GeminiSuggestion, AIConfig, UserSettings } from '../types';
 import { X, Sparkles, Save, Trash2, ExternalLink, Hash, Quote, Info, Check, Link as LinkIcon, Loader2, GitMerge, BookOpen, Book } from 'lucide-react';
 import { analyzeTerm } from '../services/llmService';
-import { queryWiktionary, WiktionaryEntry } from '../services/wiktionaryService';
+import { queryWiktionary, WiktionaryEntry } from '../services/wiktionaryService.ts';
 
 const AI_CACHE_KEY = 'luminous_lute_ai_cache';
 

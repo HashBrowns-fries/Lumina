@@ -1,6 +1,6 @@
 import { Language } from '../types';
-import { sqliteDictionaryService } from './sqliteDictionaryService';
-import { browserDictionaryService } from './browserDictionaryService';
+import { sqliteDictionaryService } from './sqliteDictionaryService.ts';
+import { browserDictionaryService } from './browserDictionaryService.ts';
 
 
 

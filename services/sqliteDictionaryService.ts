@@ -1,5 +1,5 @@
 import { Language } from '../types';
-import { WiktionaryEntry, WiktionaryResponse } from './wiktionaryService';
+import { WiktionaryEntry, WiktionaryResponse } from './wiktionaryService.ts';
 
 interface DictionaryEntry {
   id: number;

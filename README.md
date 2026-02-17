@@ -306,7 +306,7 @@ dict/
 
 ### 项目结构
 ```
-luminous-lute/
+lumina/
 ├── components/          # React组件
 │   ├── TermSidebar.tsx  # 词典侧边栏（核心）
 │   ├── Reader.tsx       # 阅读器组件
@@ -505,3 +505,40 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 ---
 
 **Lumina** - 让语言学习更智能、更高效 ✨
+
+## Desktop Application (Tauri)
+
+Lumina can be built as a cross-platform desktop application using Tauri.
+
+### Prerequisites
+
+1. Install [Rust](https://www.rust-lang.org/tools/install)
+2. Install Tauri CLI (already included as dev dependency)
+
+### Development
+
+```bash
+npm run dev:tauri
+```
+
+This starts:
+- Frontend dev server (localhost:5173)
+- Dictionary server (localhost:3000) 
+- Tauri desktop app
+
+### Building
+
+```bash
+npm run build:tauri
+```
+
+Generates platform-specific installers in `src-tauri/target/release/bundle/`.
+
+### Icon Setup
+
+Place application icons in `src-tauri/icons/`:
+- 32x32.png, 128x128.png, 128x128@2x.png
+- icon.icns (macOS)
+- icon.ico (Windows)
+
+Or remove the `icon` array from `tauri.conf.json` to use default icons.

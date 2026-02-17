@@ -25,3 +25,9 @@ dist-ssr
 
 # Dictionary data files (too large for git)
 dict/
+
+# Tauri
+src-tauri/target
+src-tauri/**/*.rs.bk
+src-tauri/Cargo.lock
+

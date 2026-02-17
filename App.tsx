@@ -530,7 +530,7 @@ const App = () => {
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
-                      a.download = `luminous-lute-backup-${new Date().toISOString().split('T')[0]}.json`;
+                      a.download = `lumina-backup-${new Date().toISOString().split('T')[0]}.json`;
                       a.click();
                     }}
                     className="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
