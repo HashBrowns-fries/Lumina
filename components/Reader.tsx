@@ -796,7 +796,14 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   const sidebarContentWidth = sidebarWidth !== null ? sidebarWidth : defaultSidebarWidth;
 
   return (
-    <div className="flex-1 flex h-full overflow-hidden bg-white">
+     <div className={`flex-1 flex h-full overflow-hidden ${
+       settings.theme === 'dark' ? 'bg-slate-900' :
+       settings.theme === 'night' ? 'bg-indigo-950' :
+       settings.theme === 'contrast' ? 'bg-black' :
+       settings.theme === 'sepia' ? 'bg-amber-50' :
+       settings.theme === 'paper' ? 'bg-stone-50' :
+       'bg-white'
+     }`}>
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
@@ -804,8 +811,22 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         style={{ width: `${contentWidth}px` }}
       >
         <div className="max-w-3xl mx-auto">
-           <header className="mb-12 border-b border-slate-100 pb-8">
-             <h1 className="text-4xl font-black text-slate-900 serif-text tracking-tight leading-tight">{text.title}</h1>
+            <header className={`mb-12 border-b pb-8 ${
+              settings.theme === 'dark' ? 'border-slate-700' :
+              settings.theme === 'night' ? 'border-indigo-800' :
+              settings.theme === 'contrast' ? 'border-white' :
+              settings.theme === 'sepia' ? 'border-amber-200' :
+              settings.theme === 'paper' ? 'border-stone-200' :
+              'border-slate-100'
+            }`}>
+              <h1 className={`text-4xl font-black serif-text tracking-tight leading-tight ${
+                settings.theme === 'dark' ? 'text-slate-100' :
+                settings.theme === 'night' ? 'text-indigo-100' :
+                settings.theme === 'contrast' ? 'text-white' :
+                settings.theme === 'sepia' ? 'text-amber-900' :
+                settings.theme === 'paper' ? 'text-stone-800' :
+                'text-slate-900'
+              }`}>{text.title}</h1>
              
              {/* 章节导航 */}
              {isUsingNewStorage && chapters.length > 1 && (
@@ -823,11 +844,18 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                      <ChevronLeft size={18} />
                    </button>
                    
-                   <select
-                     value={currentChapterIndex}
-                     onChange={(e) => handleChapterChange(Number(e.target.value))}
-                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 min-w-[200px]"
-                   >
+                      <select
+                        value={currentChapterIndex}
+                        onChange={(e) => handleChapterChange(Number(e.target.value))}
+                        className={`border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 min-w-[200px] ${
+                          settings.theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-100' :
+                          settings.theme === 'night' ? 'bg-indigo-900 border-indigo-800 text-indigo-100' :
+                          settings.theme === 'contrast' ? 'bg-black border-white text-white' :
+                          settings.theme === 'sepia' ? 'bg-amber-100 border-amber-200 text-amber-900' :
+                          settings.theme === 'paper' ? 'bg-stone-100 border-stone-200 text-stone-800' :
+                          'bg-slate-50 border-slate-200 text-slate-700'
+                        }`}
+                      >
                      {chapters.map((chapter, idx) => (
                        <option key={chapter.id} value={idx}>
                          {chapter.title || `Chapter ${idx + 1}`}
@@ -865,7 +893,21 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
              </div>
            </header>
 
-             <div className="serif-text text-xl leading-[1.9] text-slate-800 selection:bg-indigo-100 selection:text-indigo-900 space-y-6">
+              <div 
+                className="selection:bg-indigo-100 selection:text-indigo-900 space-y-6"
+                style={{
+                  fontSize: `${settings.fontSize}px`,
+                  lineHeight: settings.lineHeight,
+                  fontFamily: settings.fontFamily === 'system-ui' ? 'inherit' : settings.fontFamily,
+                  fontWeight: settings.fontWeight,
+                  color: settings.theme === 'dark' ? '#f1f5f9' :
+                         settings.theme === 'night' ? '#e0e7ff' :
+                         settings.theme === 'contrast' ? '#ffffff' :
+                         settings.theme === 'sepia' ? '#78350f' :
+                         settings.theme === 'paper' ? '#292524' :
+                         '#1e293b' // light, auto, default
+                }}
+              >
                {/* 按段落渲染内容 */}
                {(() => {
                  // 计算当前页面的全局词索引范围
@@ -925,16 +967,30 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                 <div className="mt-12 mb-8 text-center">
                   <div className="inline-flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
-                        disabled={currentPageIndex === 0}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm flex items-center gap-2"
-                      >
+                       <button
+                         onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
+                         disabled={currentPageIndex === 0}
+                         className={`px-5 py-2.5 font-medium rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm flex items-center gap-2 ${
+                           settings.theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700' :
+                           settings.theme === 'night' ? 'bg-indigo-900 hover:bg-indigo-800 text-indigo-100 border border-indigo-800' :
+                           settings.theme === 'contrast' ? 'bg-black hover:bg-gray-900 text-white border border-white' :
+                           settings.theme === 'sepia' ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200' :
+                           settings.theme === 'paper' ? 'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200' :
+                           'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                         }`}
+                       >
                         <ChevronLeft size={16} />
                         Previous Page
                       </button>
                       
-                      <div className="bg-white border border-slate-200 rounded-xl px-5 py-2.5">
+                       <div className={`border rounded-xl px-5 py-2.5 ${
+                         settings.theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-100' :
+                         settings.theme === 'night' ? 'bg-indigo-900 border-indigo-800 text-indigo-100' :
+                         settings.theme === 'contrast' ? 'bg-black border-white text-white' :
+                         settings.theme === 'sepia' ? 'bg-amber-100 border-amber-200 text-amber-900' :
+                         settings.theme === 'paper' ? 'bg-stone-100 border-stone-200 text-stone-800' :
+                         'bg-white border-slate-200 text-slate-700'
+                       }`}>
                         <span className="text-sm font-bold text-slate-700">
                           Page {currentPageIndex + 1} of {pages.length}
                         </span>
@@ -943,11 +999,18 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                         </span>
                       </div>
                       
-                      <button
-                        onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
-                        disabled={currentPageIndex >= pages.length - 1}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm flex items-center gap-2"
-                      >
+                       <button
+                         onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
+                         disabled={currentPageIndex >= pages.length - 1}
+                         className={`px-5 py-2.5 font-medium rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-sm flex items-center gap-2 ${
+                           settings.theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700' :
+                           settings.theme === 'night' ? 'bg-indigo-900 hover:bg-indigo-800 text-indigo-100 border border-indigo-800' :
+                           settings.theme === 'contrast' ? 'bg-black hover:bg-gray-900 text-white border border-white' :
+                           settings.theme === 'sepia' ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200' :
+                           settings.theme === 'paper' ? 'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200' :
+                           'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                         }`}
+                       >
                         Next Page
                         <ChevronRight size={16} />
                       </button>
@@ -960,11 +1023,18 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                     {/* 快速跳转 */}
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400">Go to page:</span>
-                      <select
-                        value={currentPageIndex}
-                        onChange={(e) => setCurrentPageIndex(Number(e.target.value))}
-                        className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-indigo-500"
-                      >
+                       <select
+                         value={currentPageIndex}
+                         onChange={(e) => setCurrentPageIndex(Number(e.target.value))}
+                         className={`border rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-indigo-500 ${
+                           settings.theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-100' :
+                           settings.theme === 'night' ? 'bg-indigo-900 border-indigo-800 text-indigo-100' :
+                           settings.theme === 'contrast' ? 'bg-black border-white text-white' :
+                           settings.theme === 'sepia' ? 'bg-amber-100 border-amber-200 text-amber-900' :
+                           settings.theme === 'paper' ? 'bg-stone-100 border-stone-200 text-stone-800' :
+                           'bg-slate-50 border-slate-200 text-slate-700'
+                         }`}
+                       >
                         {pages.map((_, idx) => (
                           <option key={idx} value={idx}>
                             Page {idx + 1}
@@ -987,19 +1057,33 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         />
 
         {/* 浮动翻页控件 */}
-        <div className="fixed bottom-8 z-30 flex items-center gap-3 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-2xl px-4 py-3 shadow-xl"
+        <div className={`fixed bottom-8 z-30 flex items-center gap-3 backdrop-blur-sm border rounded-2xl px-4 py-3 shadow-xl ${
+          settings.theme === 'dark' ? 'bg-slate-800/90 border-slate-700 shadow-slate-900' :
+          settings.theme === 'night' ? 'bg-indigo-900/90 border-indigo-800 shadow-indigo-950' :
+          settings.theme === 'contrast' ? 'bg-black/90 border-white shadow-white/20' :
+          settings.theme === 'sepia' ? 'bg-amber-100/90 border-amber-200 shadow-amber-200' :
+          settings.theme === 'paper' ? 'bg-stone-100/90 border-stone-200 shadow-stone-200' :
+          'bg-white/90 border-slate-200 shadow-slate-200'
+        }`}
              style={{ right: `calc(${sidebarContentWidth}px + 2rem)` }}>
-         <button
-           onClick={() => {
-             if (currentPageIndex > 0) {
-               setCurrentPageIndex(currentPageIndex - 1);
-               if (scrollRef.current) scrollRef.current.scrollTop = 0;
-             }
-           }}
-           disabled={currentPageIndex === 0}
-           className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-           title="Previous page (←)"
-         >
+          <button
+            onClick={() => {
+              if (currentPageIndex > 0) {
+                setCurrentPageIndex(currentPageIndex - 1);
+                if (scrollRef.current) scrollRef.current.scrollTop = 0;
+              }
+            }}
+            disabled={currentPageIndex === 0}
+            className={`p-2.5 rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+              settings.theme === 'dark' ? 'bg-slate-700 hover:bg-slate-600 text-slate-100' :
+              settings.theme === 'night' ? 'bg-indigo-800 hover:bg-indigo-700 text-indigo-100' :
+              settings.theme === 'contrast' ? 'bg-gray-900 hover:bg-gray-800 text-white' :
+              settings.theme === 'sepia' ? 'bg-amber-200 hover:bg-amber-300 text-amber-900' :
+              settings.theme === 'paper' ? 'bg-stone-200 hover:bg-stone-300 text-stone-800' :
+              'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+            title="Previous page (←)"
+          >
            <ChevronLeft size={20} />
          </button>
          
@@ -1012,17 +1096,24 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
            </span>
          </div>
          
-         <button
-           onClick={() => {
-             if (currentPageIndex < pages.length - 1) {
-               setCurrentPageIndex(currentPageIndex + 1);
-               if (scrollRef.current) scrollRef.current.scrollTop = 0;
-             }
-           }}
-           disabled={currentPageIndex >= pages.length - 1}
-           className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-           title="Next page (→)"
-         >
+          <button
+            onClick={() => {
+              if (currentPageIndex < pages.length - 1) {
+                setCurrentPageIndex(currentPageIndex + 1);
+                if (scrollRef.current) scrollRef.current.scrollTop = 0;
+              }
+            }}
+            disabled={currentPageIndex >= pages.length - 1}
+            className={`p-2.5 rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+              settings.theme === 'dark' ? 'bg-slate-700 hover:bg-slate-600 text-slate-100' :
+              settings.theme === 'night' ? 'bg-indigo-800 hover:bg-indigo-700 text-indigo-100' :
+              settings.theme === 'contrast' ? 'bg-gray-900 hover:bg-gray-800 text-white' :
+              settings.theme === 'sepia' ? 'bg-amber-200 hover:bg-amber-300 text-amber-900' :
+              settings.theme === 'paper' ? 'bg-stone-200 hover:bg-stone-300 text-stone-800' :
+              'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+            title="Next page (→)"
+          >
            <ChevronRight size={20} />
          </button>
          
@@ -1052,7 +1143,14 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
          )}
        </div>
 
-        <aside className="border-l border-slate-200 bg-slate-50 flex flex-col shrink-0 z-20 shadow-2xl shadow-slate-200"
+         <aside className={`border-l flex flex-col shrink-0 z-20 shadow-2xl ${
+           settings.theme === 'dark' ? 'border-slate-700 bg-slate-800 shadow-slate-900' :
+           settings.theme === 'night' ? 'border-indigo-800 bg-indigo-900 shadow-indigo-950' :
+           settings.theme === 'contrast' ? 'border-white bg-black shadow-white/20' :
+           settings.theme === 'sepia' ? 'border-amber-200 bg-amber-100 shadow-amber-200' :
+           settings.theme === 'paper' ? 'border-stone-200 bg-stone-100 shadow-stone-200' :
+           'border-slate-200 bg-slate-50 shadow-slate-200'
+         }`}
                style={{ width: `${sidebarContentWidth}px` }}>
          {selection ? (
             <TermSidebar 

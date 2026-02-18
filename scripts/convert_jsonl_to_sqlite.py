@@ -3,10 +3,12 @@
 将kaikki.org的JSONL格式词典数据转换为SQLite数据库
 
 用法:
-python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl German
-python convert_jsonl_to_sqlite.py kaikki.org-dictionary-Latin.jsonl Latin
+python convert_jsonl_to_sqlite.py <jsonl文件> <ISO语言代码>
+python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl de
+python convert_jsonl_to_sqlite.py kaikki.org-dictionary-Sanskrit.jsonl sa
 
-输出: dict/{language}/{language}_dict.db
+输出: dict/{language_name}/{iso_code}_dict.db
+例如: dict/German/de_dict.db, dict/Sanskrit/sa_dict.db
 """
 
 import json
@@ -15,6 +17,35 @@ import os
 import sys
 import re
 from pathlib import Path
+
+# ISO语言代码到语言名称的映射
+ISO_TO_LANGUAGE_NAME = {
+    "de": "German",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "sv": "Swedish",
+    "da": "Danish",
+    "fi": "Finnish",
+    "no": "Norwegian",
+    "la": "Latin",
+    "tr": "Turkish",
+    "el": "Greek",
+    "he": "Hebrew",
+    "hi": "Hindi",
+    "sa": "Sanskrit",
+    "th": "Thai",
+    "vi": "Vietnamese",
+}
 
 
 def normalize_word(word):
@@ -274,16 +305,22 @@ def extract_pronunciation(entry):
     return ""
 
 
-def process_jsonl_file(jsonl_path, language_code):
+def process_jsonl_file(jsonl_path, iso_code):
     """处理JSONL文件并导入数据库"""
+    # 获取语言名称
+    language_name = ISO_TO_LANGUAGE_NAME.get(iso_code)
+    if not language_name:
+        print(f"警告: ISO代码 '{iso_code}' 未在映射表中找到，使用ISO代码作为语言名称")
+        language_name = iso_code.capitalize()
+
     # 创建输出目录
-    output_dir = Path(f"dict/{language_code}")
+    output_dir = Path(f"dict/{language_name}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    db_path = output_dir / f"{language_code.lower()}_dict.db"
+    db_path = output_dir / f"{iso_code}_dict.db"
 
     print(f"创建数据库: {db_path}")
-    conn = create_database_schema(db_path, language_code)
+    conn = create_database_schema(db_path, iso_code)
     cursor = conn.cursor()
 
     # 读取JSONL文件
@@ -341,7 +378,7 @@ def process_jsonl_file(jsonl_path, language_code):
                     (
                         word,
                         normalized_word,
-                        language_code,
+                        iso_code,
                         pos,
                         etymology,
                         pronunciation,
@@ -454,29 +491,34 @@ def process_jsonl_file(jsonl_path, language_code):
 
 def main():
     if len(sys.argv) < 3:
-        print("用法: python convert_jsonl_to_sqlite.py <jsonl文件> <语言代码>")
+        print("用法: python convert_jsonl_to_sqlite.py <jsonl文件> <ISO语言代码>")
         print(
-            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl German"
+            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl de"
         )
         print(
-            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-Latin.jsonl Latin"
+            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-Sanskrit.jsonl sa"
         )
+        print("\n支持的ISO语言代码:")
+        for code, name in sorted(ISO_TO_LANGUAGE_NAME.items()):
+            print(f"  {code}: {name}")
         sys.exit(1)
 
     jsonl_path = sys.argv[1]
-    language_code = sys.argv[2]
+    iso_code = sys.argv[2].lower()
 
     if not os.path.exists(jsonl_path):
         print(f"错误: 文件不存在: {jsonl_path}")
         sys.exit(1)
 
     try:
-        db_path = process_jsonl_file(jsonl_path, language_code)
+        db_path = process_jsonl_file(jsonl_path, iso_code)
         print(f"\n数据库已创建: {db_path}")
         print(f"\n下一步:")
-        print(f"1. 将数据库文件复制到 dict/{language_code}/ 目录")
+        language_name = ISO_TO_LANGUAGE_NAME.get(iso_code, iso_code.capitalize())
+        print(f"1. 数据库已保存到 dict/{language_name}/{iso_code}_dict.db")
         print(f"2. 运行 extract-test-data.py 提取测试数据")
         print(f"3. 启动应用测试词典功能")
+        print(f"\n提示: 使用ISO代码 '{iso_code}' 在应用中查询该语言")
 
     except Exception as e:
         print(f"处理过程中发生错误: {e}")

@@ -42,6 +42,8 @@ import LibraryView from './components/LibraryView';
 import LanguageSettings from './components/LanguageSettings';
 import VocabularyView from './components/VocabularyView';
 import AISettings from './components/AISettings';
+import DictionarySettings from './components/DictionarySettings';
+import AppearanceSettings from './components/AppearanceSettings';
 import { deleteDocument } from './services/documentStorage';
 
 const DEFAULT_AI_CONFIG = {
@@ -52,7 +54,7 @@ const DEFAULT_AI_CONFIG = {
 };
 
 const App = () => {
-  const [view, setView] = React.useState<'library' | 'reader' | 'settings' | 'vocabulary'>('library');
+   const [view, setView] = React.useState<'library' | 'reader' | 'settings' | 'vocabulary'>('library');
   const [isInitialized, setIsInitialized] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 100, phase: '' });
@@ -77,6 +79,8 @@ const App = () => {
     fontSize: 16,
     lineHeight: 1.6,
     wordsPerPage: 1000,
+    fontFamily: 'system-ui',
+    fontWeight: 400,
     aiConfig: DEFAULT_AI_CONFIG,
     createdAt: Date.now(),
     updatedAt: Date.now()
@@ -354,6 +358,100 @@ const App = () => {
     }));
   };
 
+  const handleUpdateSettings = (updates: Partial<UserSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      ...updates,
+      updatedAt: Date.now()
+    }));
+  };
+
+  // 主题颜色映射
+  const getThemeClasses = () => {
+    switch (settings.theme) {
+      case 'dark':
+        return {
+          bg: 'bg-slate-900',
+          text: 'text-slate-100',
+          border: 'border-slate-700',
+          cardBg: 'bg-slate-800',
+          hoverBg: 'hover:bg-slate-700',
+          mutedText: 'text-slate-400',
+          mutedBg: 'bg-slate-800/50',
+          navBg: 'bg-slate-800/80',
+          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+          buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600'
+        };
+      case 'night':
+        return {
+          bg: 'bg-indigo-950',
+          text: 'text-indigo-100',
+          border: 'border-indigo-800',
+          cardBg: 'bg-indigo-900',
+          hoverBg: 'hover:bg-indigo-800',
+          mutedText: 'text-indigo-400',
+          mutedBg: 'bg-indigo-900/50',
+          navBg: 'bg-indigo-900/80',
+          buttonPrimary: 'bg-indigo-700 text-white hover:bg-indigo-800',
+          buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700'
+        };
+      case 'contrast':
+        return {
+          bg: 'bg-black',
+          text: 'text-white',
+          border: 'border-white',
+          cardBg: 'bg-gray-900',
+          hoverBg: 'hover:bg-gray-800',
+          mutedText: 'text-gray-400',
+          mutedBg: 'bg-gray-900/50',
+          navBg: 'bg-black/80',
+          buttonPrimary: 'bg-white text-black hover:bg-gray-200',
+          buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800'
+        };
+      case 'sepia':
+        return {
+          bg: 'bg-amber-50',
+          text: 'text-amber-900',
+          border: 'border-amber-200',
+          cardBg: 'bg-amber-100',
+          hoverBg: 'hover:bg-amber-200',
+          mutedText: 'text-amber-700',
+          mutedBg: 'bg-amber-100/50',
+          navBg: 'bg-amber-100/80',
+          buttonPrimary: 'bg-amber-600 text-white hover:bg-amber-700',
+          buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+        };
+      case 'paper':
+        return {
+          bg: 'bg-stone-50',
+          text: 'text-stone-800',
+          border: 'border-stone-200',
+          cardBg: 'bg-stone-100',
+          hoverBg: 'hover:bg-stone-200',
+          mutedText: 'text-stone-600',
+          mutedBg: 'bg-stone-100/50',
+          navBg: 'bg-stone-100/80',
+          buttonPrimary: 'bg-stone-600 text-white hover:bg-stone-700',
+          buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300'
+        };
+      default: // light, auto
+        return {
+          bg: 'bg-slate-50',
+          text: 'text-slate-900',
+          border: 'border-slate-200',
+          cardBg: 'bg-white',
+          hoverBg: 'hover:bg-slate-100',
+          mutedText: 'text-slate-500',
+          mutedBg: 'bg-slate-100/50',
+          navBg: 'bg-white/80',
+          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+          buttonSecondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+        };
+    }
+  };
+
+  const themeClasses = getThemeClasses();
+
   const currentText = useMemo(() => 
     texts.find(t => t.id === currentTextId), 
     [texts, currentTextId]
@@ -413,24 +511,24 @@ const App = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100">
+   return (
+    <div className={`min-h-screen font-sans selection:bg-indigo-100 ${themeClasses.bg} ${themeClasses.text}`}>
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 z-50 px-6 flex items-center justify-between">
+       <nav className={`fixed top-0 left-0 right-0 h-16 backdrop-blur-md border-b z-50 px-6 flex items-center justify-between ${themeClasses.navBg} ${themeClasses.border}`}>
         <div className="flex items-center gap-4">
-          <button 
+           <button 
             onClick={() => setView('library')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${
-              view === 'library' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+              view === 'library' ? 'bg-indigo-100 text-indigo-700' : `${themeClasses.text} ${themeClasses.hoverBg}`
             }`}
           >
             <Library size={20} />
             Library
           </button>
-          <button 
+           <button 
             onClick={() => setView('vocabulary')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${
-              view === 'vocabulary' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+              view === 'vocabulary' ? 'bg-indigo-100 text-indigo-700' : `${themeClasses.text} ${themeClasses.hoverBg}`
             }`}
           >
             <GraduationCap size={20} />
@@ -451,10 +549,10 @@ const App = () => {
             </div>
           )}
           
-          <button 
+           <button 
             onClick={() => setView('settings')}
             className={`p-2 rounded-xl transition-all ${
-              view === 'settings' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+              view === 'settings' ? 'bg-indigo-100 text-indigo-700' : `${themeClasses.text} ${themeClasses.hoverBg}`
             }`}
           >
             <Settings size={20} />
@@ -471,6 +569,7 @@ const App = () => {
             onSelect={handleSelectText}
             onAdd={handleAddText}
             onDelete={handleDeleteText}
+            settings={settings}
           />
         )}
         
@@ -500,26 +599,35 @@ const App = () => {
         {view === 'settings' && (
           <div className="flex-1 overflow-y-auto p-8">
             <div className="max-w-3xl mx-auto space-y-6">
-              <LanguageSettings 
-                languages={languages}
-                onUpdate={handleUpdateLanguages}
-              />
+               <LanguageSettings 
+                 languages={languages}
+                 onUpdate={handleUpdateLanguages}
+                 settings={settings}
+               />
               
-              <AISettings 
-                aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
-                onUpdate={handleUpdateAIConfig}
-              />
+                <DictionarySettings settings={settings} />
+               
+               <AppearanceSettings
+                 settings={settings}
+                 onUpdate={handleUpdateSettings}
+               />
+               
+                <AISettings 
+                  aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
+                  onUpdate={handleUpdateAIConfig}
+                  settings={settings}
+                />
               
-              {/* Sync Settings */}
-              <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <Save size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Data Sync</h2>
-                    <p className="text-xs text-slate-400 font-medium">Export and backup your data</p>
-                  </div>
+               {/* Sync Settings */}
+               <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
+                 <div className="flex items-center gap-3 mb-6">
+                   <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                     <Save size={20} />
+                   </div>
+                   <div>
+                     <h2 className={`text-lg font-bold ${themeClasses.text}`}>Data Sync</h2>
+                     <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Export and backup your data</p>
+                   </div>
                 </div>
                 
                 <div className="flex gap-3">
@@ -533,7 +641,7 @@ const App = () => {
                       a.download = `lumina-backup-${new Date().toISOString().split('T')[0]}.json`;
                       a.click();
                     }}
-                    className="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                     className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${themeClasses.buttonPrimary}`}
                   >
                     <Download size={18} />
                     Export Data
@@ -541,37 +649,37 @@ const App = () => {
                 </div>
               </section>
               
-              {/* Stats */}
-              <section className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-slate-50 text-slate-600 rounded-xl">
-                    <Database size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Statistics</h2>
-                    <p className="text-xs text-slate-400 font-medium">Your learning data overview</p>
-                  </div>
-                </div>
+               {/* Stats */}
+               <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
+                 <div className="flex items-center gap-3 mb-6">
+                   <div className={`p-2 rounded-xl ${themeClasses.mutedBg} ${themeClasses.text}`}>
+                     <Database size={20} />
+                   </div>
+                   <div>
+                     <h2 className={`text-lg font-bold ${themeClasses.text}`}>Statistics</h2>
+                     <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Your learning data overview</p>
+                   </div>
+                 </div>
                 
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-indigo-600">{texts.length}</div>
-                    <div className="text-xs text-slate-500 font-medium">Texts</div>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-emerald-600">{Object.keys(terms).length}</div>
-                    <div className="text-xs text-slate-500 font-medium">Terms</div>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-amber-600">{languages.length}</div>
-                    <div className="text-xs text-slate-500 font-medium">Languages</div>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold text-rose-600">
-                      {Object.values(terms).filter((t: Term) => t.status === TermStatus.New).length}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium">New Terms</div>
-                  </div>
+                 <div className="grid grid-cols-4 gap-4">
+                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
+                     <div className="text-2xl font-bold text-indigo-600">{texts.length}</div>
+                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Texts</div>
+                   </div>
+                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
+                     <div className="text-2xl font-bold text-emerald-600">{Object.keys(terms).length}</div>
+                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Terms</div>
+                   </div>
+                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
+                     <div className="text-2xl font-bold text-amber-600">{languages.length}</div>
+                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Languages</div>
+                   </div>
+                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
+                     <div className="text-2xl font-bold text-rose-600">
+                       {Object.values(terms).filter((t: Term) => t.status === TermStatus.New).length}
+                     </div>
+                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>New Terms</div>
+                   </div>
                 </div>
               </section>
             </div>

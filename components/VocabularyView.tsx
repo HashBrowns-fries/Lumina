@@ -36,11 +36,92 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ terms, languages, onUpd
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLang, setFilterLang] = useState<string>('all');
   
-  // Review state
-  const [reviewIndex, setReviewIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
+   // Review state
+   const [reviewIndex, setReviewIndex] = useState(0);
+   const [showAnswer, setShowAnswer] = useState(false);
 
-  const termList = useMemo(() => {
+   // 主题颜色映射
+   const getThemeClasses = () => {
+     const theme = settings?.theme || 'auto';
+     switch (theme) {
+       case 'dark':
+         return {
+           bg: 'bg-slate-900',
+           text: 'text-slate-100',
+           border: 'border-slate-700',
+           cardBg: 'bg-slate-800',
+           hoverBg: 'hover:bg-slate-700',
+           mutedText: 'text-slate-400',
+           mutedBg: 'bg-slate-800/50',
+           buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+           buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600'
+         };
+       case 'night':
+         return {
+           bg: 'bg-indigo-950',
+           text: 'text-indigo-100',
+           border: 'border-indigo-800',
+           cardBg: 'bg-indigo-900',
+           hoverBg: 'hover:bg-indigo-800',
+           mutedText: 'text-indigo-400',
+           mutedBg: 'bg-indigo-900/50',
+           buttonPrimary: 'bg-indigo-700 text-white hover:bg-indigo-800',
+           buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700'
+         };
+       case 'contrast':
+         return {
+           bg: 'bg-black',
+           text: 'text-white',
+           border: 'border-white',
+           cardBg: 'bg-gray-900',
+           hoverBg: 'hover:bg-gray-800',
+           mutedText: 'text-gray-400',
+           mutedBg: 'bg-gray-900/50',
+           buttonPrimary: 'bg-white text-black hover:bg-gray-200',
+           buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800'
+         };
+       case 'sepia':
+         return {
+           bg: 'bg-amber-50',
+           text: 'text-amber-900',
+           border: 'border-amber-200',
+           cardBg: 'bg-amber-100',
+           hoverBg: 'hover:bg-amber-200',
+           mutedText: 'text-amber-700',
+           mutedBg: 'bg-amber-100/50',
+           buttonPrimary: 'bg-amber-600 text-white hover:bg-amber-700',
+           buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+         };
+       case 'paper':
+         return {
+           bg: 'bg-stone-50',
+           text: 'text-stone-800',
+           border: 'border-stone-200',
+           cardBg: 'bg-stone-100',
+           hoverBg: 'hover:bg-stone-200',
+           mutedText: 'text-stone-600',
+           mutedBg: 'bg-stone-100/50',
+           buttonPrimary: 'bg-stone-600 text-white hover:bg-stone-700',
+           buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300'
+         };
+       default: // light, auto
+         return {
+           bg: 'bg-slate-50',
+           text: 'text-slate-900',
+           border: 'border-slate-200',
+           cardBg: 'bg-white',
+           hoverBg: 'hover:bg-slate-100',
+           mutedText: 'text-slate-500',
+           mutedBg: 'bg-slate-100/50',
+           buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+           buttonSecondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+         };
+     }
+   };
+
+   const themeClasses = getThemeClasses();
+
+   const termList = useMemo(() => {
     let list = Object.entries(terms).map(([key, term]) => ({ key, ...(term as Term) }));
     if (settings?.showRootFormsOnly) {
       list = list.filter(term => term.parentId === undefined);

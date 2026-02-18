@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
+import fs from 'fs';
+import { promisify } from 'util';
 
 // 仅用于模拟 TS 接口结构，在 JS 中是多余的，但保留以供参考 (稍后会移除以简化代码)
 /*
@@ -29,10 +31,129 @@ class SQLiteDictionaryService {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const projectRoot = path.join(__dirname, '..');
+    const dictDir = path.join(projectRoot, 'dict');
     
-    // Map language codes to SQLite database file paths
-    this.dbPaths.set('de', path.join(projectRoot, 'dict', 'German', 'german_dict.db'));
-    // More languages can be added
+    console.log(`[SQLiteDictionary] 扫描词典目录: ${dictDir}`);
+    
+    try {
+      // 检查dict目录是否存在
+      if (!fs.existsSync(dictDir)) {
+        console.warn(`[SQLiteDictionary] 词典目录不存在: ${dictDir}`);
+        return;
+      }
+      
+      // 读取dict目录中的所有子目录
+      const languageDirs = fs.readdirSync(dictDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+      
+      console.log(`[SQLiteDictionary] 找到语言目录: ${languageDirs.join(', ')}`);
+      
+      let foundCount = 0;
+      
+      // 遍历每个语言目录，查找数据库文件
+      for (const langDir of languageDirs) {
+        const fullLangDir = path.join(dictDir, langDir);
+        
+        try {
+          // 查找该目录下的 *_dict.db 文件
+          const files = fs.readdirSync(fullLangDir);
+          const dbFiles = files.filter(file => file.endsWith('_dict.db'));
+          
+          for (const dbFile of dbFiles) {
+            const dbPath = path.join(fullLangDir, dbFile);
+            
+            // 从文件名提取语言代码
+            // 支持两种格式:
+            // 1. {iso_code}_dict.db (例如: de_dict.db, sa_dict.db) - 推荐格式
+            // 2. {language_name}_dict.db (例如: german_dict.db, sanskrit_dict.db) - 旧格式兼容
+            let isoCode = null;
+            
+            // 尝试匹配ISO代码格式
+            const isoMatch = dbFile.match(/^([a-z]{2})_dict\.db$/);
+            if (isoMatch) {
+              isoCode = isoMatch[1];
+            } else {
+              // 尝试从语言名称映射到ISO代码
+              const langMatch = dbFile.match(/^([a-zA-Z]+)_dict\.db$/);
+              if (langMatch) {
+                const languageName = langMatch[1].toLowerCase();
+                // 简单的语言名称到ISO代码映射
+                const languageToCode = {
+                  'german': 'de',
+                  'sanskrit': 'sa',
+                  'english': 'en',
+                  'french': 'fr',
+                  'spanish': 'es',
+                  'italian': 'it',
+                  'portuguese': 'pt',
+                  'russian': 'ru',
+                  'chinese': 'zh',
+                  'japanese': 'ja',
+                  'korean': 'ko',
+                  'arabic': 'ar',
+                  'dutch': 'nl',
+                  'polish': 'pl',
+                  'swedish': 'sv',
+                  'danish': 'da',
+                  'finnish': 'fi',
+                  'norwegian': 'no',
+                  'latin': 'la',
+                  'turkish': 'tr',
+                  'greek': 'el',
+                  'hebrew': 'he',
+                  'hindi': 'hi',
+                  'thai': 'th',
+                  'vietnamese': 'vi'
+                };
+                
+                isoCode = languageToCode[languageName];
+                if (isoCode) {
+                  console.log(`[SQLiteDictionary] 映射语言名称: ${languageName} -> ${isoCode}`);
+                }
+              }
+            }
+            
+            if (isoCode) {
+              // 检查数据库文件是否可访问
+              if (fs.existsSync(dbPath)) {
+                this.dbPaths.set(isoCode, dbPath);
+                console.log(`[SQLiteDictionary] 注册语言: ${isoCode} -> ${dbPath}`);
+                foundCount++;
+              }
+            } else {
+              console.warn(`[SQLiteDictionary] 无法识别数据库文件语言: ${dbFile} (应为 {iso_code}_dict.db 格式)`);
+            }
+          }
+        } catch (error) {
+          console.warn(`[SQLiteDictionary] 读取语言目录时出错 ${langDir}:`, error.message);
+        }
+      }
+      
+      // 如果没有找到任何数据库，添加默认的德语数据库（向后兼容）
+      if (foundCount === 0) {
+        const defaultPath = path.join(projectRoot, 'dict', 'German', 'german_dict.db');
+        if (fs.existsSync(defaultPath)) {
+          this.dbPaths.set('de', defaultPath);
+          console.log(`[SQLiteDictionary] 注册默认语言: de -> ${defaultPath}`);
+        }
+      }
+      
+      console.log(`[SQLiteDictionary] 已注册 ${this.dbPaths.size} 种语言的词典数据库`);
+      
+      // 打印已注册的语言
+      for (const [code, dbPath] of this.dbPaths) {
+        console.log(`  - ${code}: ${dbPath}`);
+      }
+      
+    } catch (error) {
+      console.error('[SQLiteDictionary] 初始化数据库路径时出错:', error);
+      // 在错误情况下仍设置默认路径
+      const defaultPath = path.join(projectRoot, 'dict', 'German', 'german_dict.db');
+      if (fs.existsSync(defaultPath)) {
+        this.dbPaths.set('de', defaultPath);
+      }
+    }
   }
 
   getCacheKey(word, languageCode) {
@@ -715,6 +836,182 @@ class SQLiteDictionaryService {
         senseCount: 0,
         formCount: 0,
         synonymCount: 0
+      };
+    }
+  }
+
+  getAvailableLanguages() {
+    // 返回所有可用语言的ISO代码列表
+    return Array.from(this.dbPaths.keys());
+  }
+
+  async getLanguagesInfo() {
+    // 返回所有可用语言的详细信息
+    const languages = [];
+    
+    for (const [languageCode, dbPath] of this.dbPaths) {
+      try {
+        const stats = await this.getStatistics(languageCode);
+        languages.push({
+          code: languageCode,
+          path: dbPath,
+          wordCount: stats.wordCount,
+          senseCount: stats.senseCount,
+          formCount: stats.formCount,
+          synonymCount: stats.synonymCount
+        });
+      } catch (error) {
+        console.warn(`[SQLiteDictionary] 无法获取语言 ${languageCode} 的统计信息:`, error.message);
+        languages.push({
+          code: languageCode,
+          path: dbPath,
+          wordCount: 0,
+          senseCount: 0,
+          formCount: 0,
+          synonymCount: 0
+        });
+      }
+    }
+    
+    return languages;
+  }
+
+  async rescanDictionaryPaths() {
+    console.log('[SQLiteDictionary] 重新扫描词典目录...');
+    
+    // 保存旧的连接
+    const oldDbPaths = new Map(this.dbPaths);
+    
+    // 清空当前映射
+    this.dbPaths.clear();
+    
+    // 重新初始化
+    this.initializeDatabasePaths();
+    
+    console.log(`[SQLiteDictionary] 重新扫描完成，发现 ${this.dbPaths.size} 种语言`);
+    
+    // 关闭不再需要的连接
+    for (const [languageCode, db] of this.connections) {
+      if (!this.dbPaths.has(languageCode)) {
+        try {
+          await db.close();
+          this.connections.delete(languageCode);
+          console.log(`[SQLiteDictionary] 关闭已删除语言的连接: ${languageCode}`);
+        } catch (error) {
+          console.error(`[SQLiteDictionary] 关闭连接时出错 ${languageCode}:`, error);
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      oldCount: oldDbPaths.size,
+      newCount: this.dbPaths.size,
+      languages: Array.from(this.dbPaths.keys())
+    };
+  }
+
+  async removeDictionary(languageCode) {
+    console.log(`[SQLiteDictionary] 尝试移除词典: ${languageCode}`);
+    
+    if (!this.dbPaths.has(languageCode)) {
+      return {
+        success: false,
+        error: `Language '${languageCode}' not found in dictionary registry`
+      };
+    }
+    
+    const dbPath = this.dbPaths.get(languageCode);
+    
+    try {
+      // 关闭该语言的数据库连接
+      if (this.connections.has(languageCode)) {
+        const db = this.connections.get(languageCode);
+        await db.close();
+        this.connections.delete(languageCode);
+        console.log(`[SQLiteDictionary] 关闭数据库连接: ${languageCode}`);
+      }
+      
+      // 从注册表中移除
+      this.dbPaths.delete(languageCode);
+      
+      console.log(`[SQLiteDictionary] 已从注册表移除: ${languageCode}`);
+      
+      return {
+        success: true,
+        languageCode,
+        dbPath,
+        message: `Dictionary '${languageCode}' removed from registry`
+      };
+      
+    } catch (error) {
+      console.error(`[SQLiteDictionary] 移除词典时出错 ${languageCode}:`, error);
+      return {
+        success: false,
+        languageCode,
+        error: error.message
+      };
+    }
+  }
+
+  async deleteDictionaryFile(languageCode) {
+    console.log(`[SQLiteDictionary] 尝试删除词典文件: ${languageCode}`);
+    
+    if (!this.dbPaths.has(languageCode)) {
+      return {
+        success: false,
+        error: `Language '${languageCode}' not found in dictionary registry`
+      };
+    }
+    
+    const dbPath = this.dbPaths.get(languageCode);
+    
+    try {
+      // 关闭连接
+      if (this.connections.has(languageCode)) {
+        const db = this.connections.get(languageCode);
+        await db.close();
+        this.connections.delete(languageCode);
+      }
+      
+      // 删除数据库文件
+      if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+        console.log(`[SQLiteDictionary] 已删除数据库文件: ${dbPath}`);
+      }
+      
+      // 删除相关的临时文件
+      const shmPath = `${dbPath}-shm`;
+      const walPath = `${dbPath}-wal`;
+      
+      if (fs.existsSync(shmPath)) {
+        fs.unlinkSync(shmPath);
+        console.log(`[SQLiteDictionary] 已删除临时文件: ${shmPath}`);
+      }
+      
+      if (fs.existsSync(walPath)) {
+        fs.unlinkSync(walPath);
+        console.log(`[SQLiteDictionary] 已删除临时文件: ${walPath}`);
+      }
+      
+      // 从注册表中移除
+      this.dbPaths.delete(languageCode);
+      
+      console.log(`[SQLiteDictionary] 词典文件已完全删除: ${languageCode}`);
+      
+      return {
+        success: true,
+        languageCode,
+        dbPath,
+        message: `Dictionary file for '${languageCode}' deleted successfully`
+      };
+      
+    } catch (error) {
+      console.error(`[SQLiteDictionary] 删除词典文件时出错 ${languageCode}:`, error);
+      return {
+        success: false,
+        languageCode,
+        error: error.message
       };
     }
   }

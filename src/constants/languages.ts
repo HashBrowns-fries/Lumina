@@ -24,7 +24,8 @@ export const STANDARD_LANGUAGES: Language[] = [
   { id: 'he', name: 'Hebrew', dictionaryUrl: 'https://he.wiktionary.org/wiki/###' },
   { id: 'hi', name: 'Hindi', dictionaryUrl: 'https://hi.wiktionary.org/wiki/###' },
   { id: 'th', name: 'Thai', dictionaryUrl: 'https://th.wiktionary.org/wiki/###' },
-  { id: 'vi', name: 'Vietnamese', dictionaryUrl: 'https://vi.wiktionary.org/wiki/###' }
+  { id: 'vi', name: 'Vietnamese', dictionaryUrl: 'https://vi.wiktionary.org/wiki/###' },
+  { id: 'sa', name: 'Sanskrit', dictionaryUrl: 'https://sa.wiktionary.org/wiki/###' }
 ];
 
 export const DEFAULT_LANGUAGES: Language[] = [
@@ -58,6 +59,7 @@ const LANGUAGE_NAME_TO_CODE: Record<string, string> = {
   'greek': 'el',
   'hebrew': 'he',
   'hindi': 'hi',
+  'sanskrit': 'sa',
   'thai': 'th',
   'vietnamese': 'vi'
 };
