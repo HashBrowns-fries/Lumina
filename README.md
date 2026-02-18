@@ -84,7 +84,7 @@ npm -v
 ### 2. 克隆项目
 
 ```powershell
-git clone https://github.com/ChenhaoMeng/Lumina.git
+git clone https://github.com/HashBrowns-fries/Lumina.git
 cd Lumina
 ```
 
@@ -154,7 +154,7 @@ npm -v
 ### 2. 克隆项目
 
 ```bash
-git clone https://github.com/ChenhaoMeng/Lumina.git
+git clone https://github.com/HashBrowns-fries/Lumina.git
 cd Lumina
 ```
 
