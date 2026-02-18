@@ -44,7 +44,7 @@ Lumina 是一个专为语言学习者设计的现代化语言学习应用。它�
 - **Vite**：快速的构建工具
 
 ### 后端 (Node.js + Express)
-- **词典服务器**：运行在端口3003的REST API
+- **词典服务器**：运行在端口3006的REST API
 - **SQLite数据库**：词典数据存储
 - **智能查询引擎**：支持词形变化检测和多条目返回
 
@@ -117,7 +117,7 @@ GEMINI_API_KEY=your_api_key_here
 # 终端 1: 启动前端 (http://localhost:3000)
 npm run dev
 
-# 终端 2: 启动词典服务器 (端口 3003)
+# 终端 2: 启动词典服务器 (端口 3006)
 cd server
 node index.js
 ```
@@ -229,22 +229,26 @@ npm run dev:both
 # 进入脚本目录
 cd scripts
 
-# 安装 Python 依赖（如需要）
+# 安装 Python 依赖
 pip install -r requirements.txt
 
-# 运行转换脚本
-python extract-test-data.py kaikki.org-dictionary-German.jsonl
+# 运行转换脚本（将 JSONL 转换为 SQLite 数据库）
+# 格式: python convert_jsonl_to_sqlite.py <jsonl文件> <语言名称>
+python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl German
+
+# 提取测试数据（可选，用于开发测试）
+python extract-test-data.py
 ```
 
-### 3. 放置数据库文件
+### 3. 验证数据库文件
 
-将生成的 `german_dict.db` 文件放入对应语言目录：
+转换脚本会自动在 `dict/{语言名称}/` 目录下生成数据库文件。例如德语数据库路径为：
 
 ```
-dict/
-└── German/
-    └── german_dict.db    # 德语词典数据库
+dict/German/german_dict.db
 ```
+
+确保该文件存在且可读。
 
 ### 4. 验证安装
 
@@ -398,8 +402,8 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 
 1. **端口被占用**
    ```powershell
-   # 查看端口 3003 是否被占用
-   netstat -ano | findstr ":3003"
+   # 查看端口 3006 是否被占用
+    netstat -ano | findstr ":3006"
    
    # 结束占用进程
    taskkill /PID <进程ID> /F
@@ -421,8 +425,8 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 
 1. **端口被占用**
    ```bash
-   # 查看端口 3003 是否被占用
-   lsof -i :3003
+   # 查看端口 3006 是否被占用
+    lsof -i :3006
    
    # 结束占用进程
    kill -9 <进程ID>
@@ -450,7 +454,7 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
    - 查看浏览器控制台错误
 
 2. **词典服务器无法启动**
-   - 检查端口 3003 是否被占用
+    - 检查端口 3006 是否被占用
    - 确认 SQLite 数据库文件存在
    - 查看服务器日志
 
@@ -506,39 +510,182 @@ entries.sort((a, b) => typeOrder[a.entryType] - typeOrder[b.entryType]);
 
 **Lumina** - 让语言学习更智能、更高效 ✨
 
-## Desktop Application (Tauri)
+## 🖥️ 桌面应用 (Tauri)
 
-Lumina can be built as a cross-platform desktop application using Tauri.
+Lumina 可以使用 Tauri 构建为跨平台桌面应用，支持 Windows、macOS 和 Linux。
 
-### Prerequisites
+### 🛠️ 环境要求
 
-1. Install [Rust](https://www.rust-lang.org/tools/install)
-2. Install Tauri CLI (already included as dev dependency)
+#### 1. 安装 Rust
+Tauri 基于 Rust 构建，需要先安装 Rust 工具链：
 
-### Development
+**Windows:**
+```powershell
+# 下载并运行 rustup-init.exe
+# 访问: https://www.rust-lang.org/tools/install
+# 或使用 winget:
+winget install Rustlang.Rustup
+```
+
+**macOS/Linux:**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+安装完成后重启终端，验证安装：
+```bash
+rustc --version
+cargo --version
+```
+
+#### 2. 系统依赖
+- **Windows**: 需要 Visual Studio Build Tools 或 Microsoft C++ Build Tools
+- **macOS**: 需要 Xcode Command Line Tools (`xcode-select --install`)
+- **Linux**: 需要基础开发工具 (gcc, pkg-config, libgtk-3-dev 等)
+
+#### 3. 项目依赖
+Tauri CLI 已作为开发依赖包含在项目中，无需单独安装。
+
+### 🚀 开发运行
 
 ```bash
 npm run dev:tauri
 ```
 
-This starts:
-- Frontend dev server (localhost:5173)
-- Dictionary server (localhost:3000) 
-- Tauri desktop app
+此命令会启动：
+- **前端开发服务器**: http://localhost:3000
+- **词典服务器**: http://localhost:3006
+- **Tauri 桌面应用**: 独立窗口
 
-### Building
+### 📦 构建应用
 
+#### 调试构建
 ```bash
 npm run build:tauri
 ```
 
-Generates platform-specific installers in `src-tauri/target/release/bundle/`.
+生成的可执行文件位于：`src-tauri/target/debug/lumina.exe` (Windows)
 
-### Icon Setup
+#### 发布构建
+```bash
+cd src-tauri
+cargo build --release
+```
 
-Place application icons in `src-tauri/icons/`:
-- 32x32.png, 128x128.png, 128x128@2x.png
-- icon.icns (macOS)
-- icon.ico (Windows)
+或使用 Tauri CLI 生成安装包：
+```bash
+npm run build:tauri
+```
 
-Or remove the `icon` array from `tauri.conf.json` to use default icons.
+发布版本位于：`src-tauri/target/release/`
+
+#### 平台特定安装包
+Tauri 会自动生成平台特定的安装包：
+- **Windows**: `.msi` 安装包 (在 `src-tauri/target/release/bundle/msi/`)
+- **macOS**: `.app` 和 `.dmg` (需要 macOS 环境)
+- **Linux**: `.AppImage` 和 `.deb`
+
+### 🎨 图标配置
+
+应用图标位于 `src-tauri/icons/` 目录：
+
+#### Windows
+- `icon.ico` - Windows 图标文件（已提供）
+- 需要多种尺寸：16x16, 32x32, 48x48, 64x64, 128x128, 256x256
+
+#### macOS
+- `icon.icns` - macOS 图标文件（需要自行创建）
+- 需要尺寸：16x16, 32x32, 64x64, 128x128, 256x256, 512x512, 1024x1024
+
+#### Linux
+- `icon.png` - PNG 格式图标（128x128 或 256x256）
+
+#### 简化配置
+如果不想管理图标，可以从 `tauri.conf.json` 中移除 `icon` 数组，使用默认图标。
+
+### ⚙️ 配置说明
+
+#### 端口配置
+- **前端开发服务器**: 3000 端口 (Vite)
+- **词典服务器**: 3006 端口 (Express)
+- **Tauri 开发服务器**: 自动检测可用端口
+
+#### 数据目录
+桌面应用的数据存储位置：
+- **Windows**: `%APPDATA%\com.lumina.app\`
+- **macOS**: `~/Library/Application Support/com.lumina.app/`
+- **Linux**: `~/.config/com.lumina.app/`
+
+### 🔧 故障排除
+
+#### 常见问题
+
+1. **Rust 安装失败**
+   ```bash
+   # 清理 Rust 安装并重试
+   rustup self uninstall
+   # 重新安装
+   ```
+
+2. **构建错误：缺少 WebView2**
+   - Windows 需要 WebView2 Runtime
+   - 下载：https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+
+3. **端口冲突**
+   ```bash
+   # 查看占用端口的进程
+   # Windows:
+   netstat -ano | findstr :3000
+   # macOS/Linux:
+   lsof -i :3000
+   ```
+
+4. **图标文件缺失**
+   - 确保 `src-tauri/icons/icon.ico` 存在
+   - 或从 `tauri.conf.json` 中移除 `icon` 配置
+
+5. **词典服务器无法启动**
+   ```bash
+   # 单独启动服务器测试
+   cd server
+   npm run dev
+   ```
+
+### 📁 项目结构
+
+```
+src-tauri/
+├── src/
+│   └── main.rs          # Rust 入口点
+├── Cargo.toml           # Rust 依赖配置
+├── tauri.conf.json      # Tauri 应用配置
+├── icons/               # 应用图标
+│   └── icon.ico        # Windows 图标
+└── target/              # 构建输出
+    ├── debug/          # 调试版本
+    └── release/        # 发布版本
+```
+
+### 🔄 更新 Tauri
+```bash
+# 更新 Tauri CLI
+npm update @tauri-apps/cli
+
+# 更新 Tauri API
+npm update @tauri-apps/api
+
+# 更新 Rust 依赖
+cd src-tauri
+cargo update
+```
+
+### 📝 开发提示
+
+1. **热重载**: 前端代码修改会自动热重载，Rust 代码修改需要重启应用
+2. **开发者工具**: 桌面应用中按 `F12` 打开开发者工具
+3. **日志查看**: 控制台输出显示在终端中
+4. **环境变量**: 桌面应用可以读取系统环境变量
+
+---
+
+**💡 提示**: 桌面应用版本提供更好的性能、离线支持和系统集成，推荐用于日常使用。

@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "dev:tauri": "concurrently \"npm run dev\" \"npm run dev:server\" \"tauri dev\"",
+    "dev:tauri": "tauri dev",
     "build:tauri": "tauri build"
   },
   "dependencies": {
