@@ -5,7 +5,17 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Term, TermStatus, Language, GeminiSuggestion, AIConfig, UserSettings } from '../types';
 import { X, Sparkles, Save, Trash2, ExternalLink, Hash, Quote, Check, Link as LinkIcon, Loader2, BookOpen, Book, FileText, AlertCircle, RefreshCw, Braces, ArrowRight, Globe, Filter, Volume2, Languages, Info, Quote as QuoteIcon, Layers, GitMerge, Puzzle } from 'lucide-react';
 import { queryWiktionary, WiktionaryEntry } from '../services/wiktionaryService.ts';
-import { sanskritService, AnalyzeResult, SanskritSegment } from '../services/enhancedSanskritService';
+import { sanskritService, AnalyzeResult, SanskritSegment, TransliterationResult } from '../services/enhancedSanskritService';
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const SHAKESPEARE = 'VWXYZABCDEFGHIJKLMNOPQRSTU';
+
+function rot13(str: string): string {
+  return str.replace(/[A-Z]/gi, (c) => {
+    const idx = ALPHABET.indexOf(c.toUpperCase());
+    return idx === -1 ? c : SHAKESPEARE[idx] + (c === c.toLowerCase() ? '' : '');
+  });
+}
 
 
 interface TermSidebarProps {
@@ -192,6 +202,10 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   const [isProcessingSanskrit, setIsProcessingSanskrit] = useState(false);
   const [sanskritError, setSanskritError] = useState<string | null>(null);
   const [showSanskritAnalysis, setShowSanskritAnalysis] = useState(false);
+  
+  // 梵语转写状态
+  const [transliterations, setTransliterations] = useState<Record<string, string>>({});
+  const [isLoadingTransliteration, setIsLoadingTransliteration] = useState(false);
   
   const sidebarRef = useRef<HTMLFormElement>(null);
   
@@ -427,6 +441,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     setShowSanskritAnalysis(false);
     setSanskritError(null);
     setIsProcessingSanskrit(false);
+    setTransliterations({});
     if (language?.id === 'sa') {
       console.debug('[TermSidebar] Sanskrit processing reset for new Sanskrit word:', word);
     } else {
@@ -435,6 +450,35 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     
     console.debug('[TermSidebar] Form reset complete, auto-analysis disabled');
   }, [word, existingTerm, allTerms, language]);
+
+  // 梵语转写函数
+  const loadTransliterations = async (text: string) => {
+    if (!text.trim() || language?.id !== 'sa') return;
+    
+    setIsLoadingTransliteration(true);
+    try {
+      const schemes = ['iast', 'slp1', 'harvardkyoto', 'devanagari'];
+      const results: Record<string, string> = {};
+      
+      for (const scheme of schemes) {
+        try {
+          const result = await sanskritService.transliterate(text, 'devanagari', scheme as any);
+          if (result.success) {
+            results[scheme] = result.transliterated;
+          }
+        } catch (e) {
+          console.debug(`Transliteration failed for ${scheme}:`, e);
+        }
+      }
+      
+      if (Object.keys(results).length > 0) {
+        setTransliterations(results);
+      }
+    } catch (e) {
+      console.debug('Failed to load transliterations:', e);
+    }
+    setIsLoadingTransliteration(false);
+  };
 
   // 梵语处理函数
   const processSanskritText = async (text: string) => {
@@ -748,7 +792,69 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                   {sanskritAnalysisResult.input || word}
                 </div>
               </div>
+              
+              {/* Transliterations */}
+              {isLoadingTransliteration ? (
+                <div className="mt-3 text-center text-xs text-purple-400">Loading transliterations...</div>
+              ) : Object.keys(transliterations).length > 0 ? (
+                <div className="mt-3 pt-3 border-t border-purple-100 space-y-1.5">
+                  <div className="text-[9px] font-bold text-purple-400 uppercase tracking-wider text-center mb-2">Transliteration</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {transliterations.iast && (
+                      <div className="bg-white/50 rounded px-2 py-1">
+                        <span className="text-purple-400 font-bold">IAST:</span> <span className="font-mono text-purple-800">{transliterations.iast}</span>
+                      </div>
+                    )}
+                    {transliterations.slp1 && (
+                      <div className="bg-white/50 rounded px-2 py-1">
+                        <span className="text-purple-400 font-bold">SLP1:</span> <span className="font-mono text-purple-800">{transliterations.slp1}</span>
+                      </div>
+                    )}
+                    {transliterations.harvardkyoto && (
+                      <div className="bg-white/50 rounded px-2 py-1">
+                        <span className="text-purple-400 font-bold">HK:</span> <span className="font-mono text-purple-800">{transliterations.harvardkyoto}</span>
+                      </div>
+                    )}
+                    {transliterations.devanagari && (
+                      <div className="bg-white/50 rounded px-2 py-1 col-span-2">
+                        <span className="text-purple-400 font-bold">Devanagari:</span> <span className="font-serif text-purple-800">{transliterations.devanagari}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => loadTransliterations(word)}
+                  className="mt-3 text-xs text-purple-500 hover:text-purple-700 underline"
+                >
+                  Show transliterations
+                </button>
+              )}
             </div>
+
+            {/* Sandhi Analysis Section */}
+            {sanskritAnalysisResult.segments && sanskritAnalysisResult.segments.length > 1 && (
+              <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4">
+                <div className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
+                  <Layers size={12} /> Sandhi Analysis
+                </div>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {sanskritAnalysisResult.segments.map((seg, idx) => (
+                    <React.Fragment key={idx}>
+                      <span className="bg-white px-3 py-1.5 rounded-lg border border-amber-200 font-mono text-sm font-bold text-amber-800">
+                        {seg.original}
+                      </span>
+                      {idx < sanskritAnalysisResult.segments.length - 1 && (
+                        <span className="text-amber-400 font-bold">+</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+                <div className="mt-3 text-center text-xs text-amber-600">
+                  Original: <span className="font-bold">{word}</span> → {sanskritAnalysisResult.segments.map(s => s.original).join(' + ')}
+                </div>
+              </div>
+            )}
 
             {/* Segment Cards - Each word from Dharma Mitra */}
             <div className="space-y-3">
