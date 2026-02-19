@@ -4,6 +4,314 @@ import { AIConfig, GeminiSuggestion } from "../types";
 import { queryWiktionary, getWiktionaryUrl, WiktionaryResponse } from "./wiktionaryService.ts";
 
 /**
+ * 梵语AI分析专用函数
+ */
+export const analyzeSanskritTerm = async (
+  term: string,
+  context: string,
+  config: AIConfig,
+  pipelineData?: {
+    segments?: Array<{ text: string; lemma: string; meaning?: string }>;
+    normalizedText?: string;
+    inputScheme?: string;
+    targetScheme?: string;
+  },
+  options?: { signal?: AbortSignal }
+): Promise<GeminiSuggestion> => {
+  const signal = options?.signal;
+  
+  console.debug('[llmService] analyzeSanskritTerm called:', { 
+    term, 
+    provider: config.provider,
+    model: config.model,
+    hasPipelineData: !!pipelineData
+  });
+
+  // 构建梵语专用prompt
+  const segmentsInfo = pipelineData?.segments?.map((seg, idx) => 
+    `Segment ${idx + 1}: "${seg.text}" (lemma: ${seg.lemma || 'unknown'})${seg.meaning ? `, meaning: ${seg.meaning}` : ''}`
+  ).join('\n') || 'No segmentation available';
+
+  const prompt = `SANSKRIT LINGUISTIC ANALYSIS TASK
+
+WORD: "${term}"
+SENTENCE CONTEXT: "${context}"
+
+MACHINE PROCESSING DATA:
+${segmentsInfo}
+${pipelineData?.normalizedText ? `Normalized form: ${pipelineData.normalizedText}` : ''}
+${pipelineData?.inputScheme ? `Input script: ${pipelineData.inputScheme}` : ''}
+${pipelineData?.targetScheme ? `Target script: ${pipelineData.targetScheme}` : ''}
+
+TASK: Provide a comprehensive Sanskrit linguistic analysis based on the machine processing data above and your knowledge of Sanskrit grammar.
+
+REQUIRED ANALYSIS (You MUST provide ALL of the following):
+
+1. **SANDHI ANALYSIS (连音规则分析)**:
+   - Identify any sandhi (sound changes) that have occurred
+   - Explain the specific sandhi rules applied (e.g., visarga sandhi, adeng gunah, etc.)
+   - If the word is a compound or contains sandhi, show how it splits
+
+2. **SEGMENTATION (分词分析)**:
+   - Show how the word segments into morphemes
+   - Identify the root (dhatu/pratipadika) and suffixes
+   - Explain each morpheme's function
+
+3. **PART OF SPEECH (词性分析)**:
+   - Identify: noun (samastha/padartha), verb (kriya), adjective (viseshana), adverb (kriyaviseshana), participle (krit/lant/strilinga), indeclinable (avyaya), etc.
+   - For nouns: indicate sub-type (proper noun, common noun, etc.)
+   - For verbs: indicate dhatu class (gana)
+
+4. **MEANING (词义解释)**:
+   - Primary meaning(s) in English
+   - Context-appropriate translation based on the sentence
+   - Technical terms (if any)
+
+5. **GRAMMATICAL FORM (语法形式)**:
+   - For nouns: case (vibhakti), number (vacana), gender (linga)
+   - For verbs: tense/aspect (lakara), mood (prayoga), person (purusha), number (vacana), voice (parasmaipadam/atmanepadam)
+   - For participles: tense, voice, case, number, gender
+   - For adjectives: degree (comparative/superlative if applicable)
+
+6. **ETYMOLOGY/WORD FORMATION (词源/构词)**:
+   - Root (dhatu for verbs, pratipadika for nouns)
+   - Derivational history (e.g., dhatu + ktv affix → abstract noun)
+   - If it's a compound (samas), explain the compound type (tatpurusha, bahuvrihi, etc.)
+   - Proto-Indo-European root if known
+
+ 7. **TRANSLATION (英文翻译)**:
+    - Provide natural English translation(s) based on context
+
+8. **CHINESE TRANSLATION (中文翻译)**:
+    - Provide Chinese translation(s) based on context
+    - Use accurate Sanskrit terminology in Chinese (e.g., 离格, 属格, 动词, 名词, 词根, 词干等)
+
+9. **EXPLANATION (解释)**:
+    - Brief explanation of the word's function and meaning in this specific sentence context (1-2 sentences)
+
+10. **EXAMPLES (例句)**:
+    - Provide 2-3 example sentences showing similar usage
+
+RETURN JSON with the following structure:
+{
+  "sandhi": "Description of sandhi rules applied and splitting if applicable",
+  "segmentation": "Morpheme breakdown: root + suffixes",
+  "partOfSpeech": "Part of speech with detailed type",
+  "meaning": "Primary English meaning(s)",
+  "grammar": {
+    "case": "nominative/accusative/instrumental/dative/ablative/genitive/locative/vocative" (for nouns),
+    "number": "singular/dual/plural",
+    "gender": "masculine/feminine/neuter",
+    "tense": "present/future/imperfect/aorist/perfect/conditional/etc.",
+    "mood": "indicative/imperative/optative/benedictive",
+    "person": "first/second/third",
+    "voice": "active/passive",
+    "dhatuClass": "gana number (e.g., Bhvadi, Adadi, etc.)"
+  },
+  "etymology": {
+    "root": "The root (dhatu or pratipadika)",
+    "derivation": "How the word is derived from the root",
+    "compoundType": "If compound: tatpurusha/bahuvrihi/karmadharaya/avyayibhava/etc.",
+    "pieRoot": "Proto-Indo-European root if known"
+  },
+  "translation": "English translation(s)",
+  "chineseTranslation": "中文翻译",
+  "explanation": "Brief explanation of this word in context",
+  "examples": ["Example 1", "Example 2"]
+}`;
+
+  console.debug('[llmService] Sanskrit prompt length:', prompt.length);
+  
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  // 调用AI API
+  if (config.provider === 'gemini') {
+    console.debug('[llmService] Using Gemini provider for Sanskrit');
+    const apiKey = config.apiKeys?.['gemini'] || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('Gemini API key is required. Please add it in Settings > AI Engine.');
+    }
+    
+    const ai = new GoogleGenAI({ apiKey });
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              sandhi: { type: Type.STRING, description: "Sandhi analysis and splitting" },
+              segmentation: { type: Type.STRING, description: "Morpheme breakdown" },
+              partOfSpeech: { type: Type.STRING, description: "Part of speech analysis" },
+              meaning: { type: Type.STRING, description: "English meaning" },
+              grammar: { 
+                type: Type.OBJECT,
+                properties: {
+                  case: { type: Type.STRING },
+                  number: { type: Type.STRING },
+                  gender: { type: Type.STRING },
+                  tense: { type: Type.STRING },
+                  mood: { type: Type.STRING },
+                  person: { type: Type.STRING },
+                  voice: { type: Type.STRING },
+                  dhatuClass: { type: Type.STRING }
+                }
+              },
+              etymology: {
+                type: Type.OBJECT,
+                properties: {
+                  root: { type: Type.STRING },
+                  derivation: { type: Type.STRING },
+                  compoundType: { type: Type.STRING },
+                  pieRoot: { type: Type.STRING }
+                }
+              },
+              translation: { type: Type.STRING },
+              chineseTranslation: { type: Type.STRING, description: "Chinese translation" },
+              explanation: { type: Type.STRING },
+              examples: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["translation", "chineseTranslation", "explanation", "examples"]
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[llmService] Gemini API call failed:', error);
+      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    let suggestion;
+    try {
+      let cleanedText = response.text || "{}";
+      if (cleanedText.includes('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+      } else if (cleanedText.includes('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      }
+      suggestion = JSON.parse(cleanedText);
+    } catch (error) {
+      console.error("[llmService] Failed to parse Gemini response:", error);
+      suggestion = {
+        translation: "Parse error",
+        explanation: "Could not parse AI response",
+        examples: []
+      };
+    }
+
+    // 构建返回结果
+    const grammarStr = suggestion.grammar ? 
+      Object.entries(suggestion.grammar).map(([k, v]) => `${k}: ${v}`).join(', ') : 
+      'No grammar analysis';
+    
+    const etymologyStr = suggestion.etymology ?
+      `Root: ${suggestion.etymology.root || 'unknown'}. Derivation: ${suggestion.etymology.derivation || 'N/A'}${suggestion.etymology.compoundType ? `. Compound: ${suggestion.etymology.compoundType}` : ''}` :
+      'No etymology available';
+
+    const result = {
+      translation: String(suggestion.translation || suggestion.meaning || ''),
+      chineseTranslation: String(suggestion.chineseTranslation || ''),
+      grammar: `${suggestion.partOfSpeech || ''}. ${grammarStr}. Sandhi: ${suggestion.sandhi || 'No sandhi analysis'}. Segmentation: ${suggestion.segmentation || 'No segmentation'}`,
+      explanation: String(suggestion.explanation || ''),
+      rootWord: String(suggestion.etymology?.root || term),
+      examples: Array.isArray(suggestion.examples) ? suggestion.examples.map(e => String(e || '')) : [],
+      sources: []
+    };
+
+    return result;
+  } else {
+    // 其他provider
+    const baseUrl = config.baseUrl || (
+      config.provider === 'ollama' ? 'http://localhost:11434/v1' :
+      config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' :
+      config.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' :
+      'https://dashscope.aliyuncs.com/compatible-mode/v1'
+    );
+
+    const envApiKey = config.provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY :
+                      config.provider === 'aliyun' ? process.env.ALIYUN_API_KEY :
+                      config.provider === 'qwen' ? process.env.QWEN_API_KEY :
+                      config.provider === 'ollama' ? process.env.OLLAMA_API_KEY || '' :
+                      process.env.API_KEY;
+    
+    const apiKey = config.apiKeys?.[config.provider] || envApiKey;
+    
+    if (config.provider !== 'ollama' && !apiKey) {
+      throw new Error(`${config.provider} API key is required.`);
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        signal,
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: 'You are a Sanskrit linguistic expert. Always return valid JSON following the schema for Sanskrit analysis.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+          max_tokens: 800
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI Provider Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      let cleanedContent = content;
+      if (cleanedContent.includes('```json')) {
+        cleanedContent = cleanedContent.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+      } else if (cleanedContent.includes('```')) {
+        cleanedContent = cleanedContent.replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      }
+      
+      const suggestion = JSON.parse(cleanedContent);
+      
+      const grammarStr = suggestion.grammar ? 
+        Object.entries(suggestion.grammar).map(([k, v]) => `${k}: ${v}`).join(', ') : 
+        'No grammar analysis';
+      
+      const etymologyStr = suggestion.etymology ?
+        `Root: ${suggestion.etymology.root || 'unknown'}. Derivation: ${suggestion.etymology.derivation || 'N/A'}${suggestion.etymology.compoundType ? `. Compound: ${suggestion.etymology.compoundType}` : ''}` :
+        'No etymology available';
+
+      return {
+        translation: String(suggestion.translation || suggestion.meaning || ''),
+        grammar: `${suggestion.partOfSpeech || ''}. ${grammarStr}. Sandhi: ${suggestion.sandhi || 'No sandhi analysis'}. Segmentation: ${suggestion.segmentation || 'No segmentation'}`,
+        explanation: String(suggestion.explanation || ''),
+        rootWord: String(suggestion.etymology?.root || term),
+        examples: Array.isArray(suggestion.examples) ? suggestion.examples.map(e => String(e || '')) : [],
+        sources: []
+      };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      console.error(`[llmService] Error calling ${config.provider} API:`, error);
+      throw new Error(`Failed to connect to ${config.provider} AI service`);
+    }
+  }
+};
+
+/**
  * 将语言名称映射到语言代码
  */
 const getLanguageCode = (languageName: string): string => {
@@ -30,7 +338,9 @@ const getLanguageCode = (languageName: string): string => {
     'arabic': 'ar',
     'hindi': 'hi',
     'thai': 'th',
-    'vietnamese': 'vi'
+    'vietnamese': 'vi',
+    'sanskrit': 'sa',
+    'sa': 'sa'
   };
   
   const normalized = languageName.toLowerCase().trim();

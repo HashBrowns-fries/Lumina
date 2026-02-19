@@ -59,6 +59,9 @@ const App = () => {
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 100, phase: '' });
   
+  // Track last read document for continue reading
+  const [lastReadTextId, setLastReadTextId] = useState<string | null>(null);
+  
   // 使用新的统一状态
   const [languages, setLanguages] = useState<Language[]>(() => 
     DEFAULT_LANGUAGES.map(lang => ({
@@ -343,7 +346,21 @@ const App = () => {
 
   const handleSelectText = (id: string) => {
     setCurrentTextId(id);
+    setLastReadTextId(id);
     setView('reader');
+  };
+  
+  const handleContinueReading = () => {
+    if (lastReadTextId && texts.find(t => t.id === lastReadTextId)) {
+      setCurrentTextId(lastReadTextId);
+      setView('reader');
+    } else if (texts.length > 0) {
+      // If no last read or it was deleted, go to most recent
+      const sortedTexts = [...texts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setCurrentTextId(sortedTexts[0].id);
+      setLastReadTextId(sortedTexts[0].id);
+      setView('reader');
+    }
   };
 
   const handleUpdateLanguages = async (newLanguages: Language[]) => {
@@ -525,6 +542,22 @@ const App = () => {
             <Library size={20} />
             Library
           </button>
+          {texts.length > 0 && (
+            <button 
+              onClick={handleContinueReading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${
+                view === 'reader' ? 'bg-indigo-100 text-indigo-700' : `${themeClasses.text} ${themeClasses.hoverBg}`
+              }`}
+            >
+              <BookOpen size={20} />
+              Reader
+              {lastReadTextId && (
+                <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full">
+                  Continue
+                </span>
+              )}
+            </button>
+          )}
            <button 
             onClick={() => setView('vocabulary')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${
@@ -596,9 +629,9 @@ const App = () => {
           />
         )}
         
-        {view === 'settings' && (
-          <div className="flex-1 overflow-y-auto p-8">
-            <div className="max-w-3xl mx-auto space-y-6">
+         {view === 'settings' && (
+           <div className={`flex-1 overflow-y-auto p-8 ${themeClasses.bg}`}>
+             <div className="max-w-3xl mx-auto space-y-6">
                <LanguageSettings 
                  languages={languages}
                  onUpdate={handleUpdateLanguages}

@@ -1,405 +1,12 @@
 
 
 // @ts-nocheck
-import React, { useState, useEffect, useRef, useCallback, FC, ReactNode, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Term, TermStatus, Language, GeminiSuggestion, AIConfig, UserSettings } from '../types';
-import { X, Sparkles, Save, Trash2, ExternalLink, Hash, Quote, Info, Check, Link as LinkIcon, Loader2, GitMerge, BookOpen, Book } from 'lucide-react';
-import { analyzeTerm } from '../services/llmService';
+import { X, Sparkles, Save, Trash2, ExternalLink, Hash, Quote, Check, Link as LinkIcon, Loader2, BookOpen, Book, FileText, AlertCircle, RefreshCw, Braces, ArrowRight, Globe, Filter, Volume2, Languages, Info, Quote as QuoteIcon, Layers, GitMerge, Puzzle } from 'lucide-react';
 import { queryWiktionary, WiktionaryEntry } from '../services/wiktionaryService.ts';
+import { sanskritService, AnalyzeResult, SanskritSegment } from '../services/enhancedSanskritService';
 
-const AI_CACHE_KEY = 'luminous_lute_ai_cache';
-
-interface AICacheEntry {
-  word: string;
-  language: string;
-  suggestion: GeminiSuggestion;
-  timestamp: number;
-}
-
-const getCachedAI = (word: string, language: string): GeminiSuggestion | null => {
-  try {
-    const cacheData = sessionStorage.getItem(AI_CACHE_KEY);
-    if (!cacheData) return null;
-    
-    const cache: AICacheEntry[] = JSON.parse(cacheData);
-    const entry = cache.find(c => 
-      c.word.toLowerCase() === word.toLowerCase() && 
-      c.language.toLowerCase() === language.toLowerCase()
-    );
-    
-    if (entry && Date.now() - entry.timestamp < 30 * 60 * 1000) {
-      console.debug('[TermSidebar] Cache hit for:', word, language);
-      return entry.suggestion;
-    }
-  } catch (e) {
-    console.debug('[TermSidebar] Cache read error:', e);
-  }
-  return null;
-};
-
-const setCachedAI = (word: string, language: string, suggestion: GeminiSuggestion): void => {
-  try {
-    const cacheData = sessionStorage.getItem(AI_CACHE_KEY);
-    let cache: AICacheEntry[] = cacheData ? JSON.parse(cacheData) : [];
-    
-    cache = cache.filter(c => 
-      !(c.word.toLowerCase() === word.toLowerCase() && c.language.toLowerCase() === language.toLowerCase())
-    );
-    
-    cache.push({ word, language, suggestion, timestamp: Date.now() });
-    
-    if (cache.length > 100) {
-      cache = cache.slice(-100);
-    }
-    
-    sessionStorage.setItem(AI_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {
-    console.debug('[TermSidebar] Cache write error:', e);
-  }
-};
-
-interface DictionaryEntryDisplayProps {
-  entry: WiktionaryEntry;
-}
-
-const DictionaryEntryDisplay: React.FC<DictionaryEntryDisplayProps> = ({ entry }) => {
-  const [showEtymology, setShowEtymology] = useState(false);
-  const [showAllDefinitions, setShowAllDefinitions] = useState(false);
-  const [showInflectionAnalysis, setShowInflectionAnalysis] = useState(false);
-  
-  // Helper function to format grammar for display in inflection analysis
-  const formatGrammarForDisplay = (grammar: any): string => {
-    if (!grammar) return '';
-    
-    if (typeof grammar === 'string') {
-      return grammar;
-    }
-    
-    if (typeof grammar === 'object' && grammar !== null) {
-      const parts: string[] = [];
-      
-      // Format each grammar category with its values
-      if (grammar.gender && Array.isArray(grammar.gender)) {
-        parts.push(`gender: ${grammar.gender.join(', ')}`);
-      }
-      if (grammar.case && Array.isArray(grammar.case)) {
-        parts.push(`case: ${grammar.case.join(', ')}`);
-      }
-      if (grammar.number && Array.isArray(grammar.number)) {
-        parts.push(`number: ${grammar.number.join(', ')}`);
-      }
-      if (grammar.tense && Array.isArray(grammar.tense)) {
-        parts.push(`tense: ${grammar.tense.join(', ')}`);
-      }
-      if (grammar.mood && Array.isArray(grammar.mood)) {
-        parts.push(`mood: ${grammar.mood.join(', ')}`);
-      }
-      if (grammar.person && Array.isArray(grammar.person)) {
-        parts.push(`person: ${grammar.person.join(', ')}`);
-      }
-      if (grammar.voice && Array.isArray(grammar.voice)) {
-        parts.push(`voice: ${grammar.voice.join(', ')}`);
-      }
-      if (grammar.degree && Array.isArray(grammar.degree)) {
-        parts.push(`degree: ${grammar.degree.join(', ')}`);
-      }
-      if (grammar.verbal && Array.isArray(grammar.verbal)) {
-        parts.push(`verbal: ${grammar.verbal.join(', ')}`);
-      }
-      if (grammar.style && Array.isArray(grammar.style)) {
-        parts.push(`style: ${grammar.style.join(', ')}`);
-      }
-      
-      // Handle any other properties that might be arrays or single values
-      for (const [key, value] of Object.entries(grammar)) {
-        // Skip already handled categories
-        if (['gender', 'case', 'number', 'tense', 'mood', 'person', 'voice', 'degree', 'verbal', 'style'].includes(key)) {
-          continue;
-        }
-        
-        if (Array.isArray(value)) {
-          parts.push(`${key}: ${value.join(', ')}`);
-        } else if (value !== null && value !== undefined) {
-          parts.push(`${key}: ${value}`);
-        }
-      }
-      
-      return parts.join(', ');
-    }
-    
-    return JSON.stringify(grammar);
-  };
-  
-  // 词性标签颜色映射
-  const posColors: Record<string, string> = {
-    'noun': 'bg-blue-50 text-blue-700 border-blue-200',
-    'verb': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'adj': 'bg-amber-50 text-amber-700 border-amber-200',
-    'adjective': 'bg-amber-50 text-amber-700 border-amber-200',
-    'adv': 'bg-purple-50 text-purple-700 border-purple-200',
-    'adverb': 'bg-purple-50 text-purple-700 border-purple-200',
-    'pron': 'bg-rose-50 text-rose-700 border-rose-200',
-    'preposition': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    'conjunction': 'bg-lime-50 text-lime-700 border-lime-200',
-    'interjection': 'bg-pink-50 text-pink-700 border-pink-200',
-    'article': 'bg-indigo-50 text-indigo-700 border-indigo-200'
-  };
-  
-  const getPosColor = (pos: string = '') => {
-    const posKey = pos.toLowerCase();
-    for (const [key, color] of Object.entries(posColors)) {
-      if (posKey.includes(key)) {
-        return color;
-      }
-    }
-    return 'bg-slate-50 text-slate-700 border-slate-200';
-  };
-  
-  // 生成描述性标题
-   const getEntryTitle = (entry: WiktionaryEntry): string => {
-    const word = entry.word;
-    const pos = entry.partOfSpeech || '';
-    
-    if (entry.inflectionAnalysis?.inflectionType) {
-      const inflectionType = entry.inflectionAnalysis.inflectionType;
-      return `${word} (${pos} · ${inflectionType})`;
-    }
-    
-    return `${word} (${pos})`;
-   };
-  
-  // 获取词性显示文本
-  const getPosDisplayText = (entry: WiktionaryEntry): string => {
-    const pos = entry.partOfSpeech || '';
-    
-    if (entry.inflectionAnalysis?.inflectionType) {
-      const inflectionType = entry.inflectionAnalysis.inflectionType;
-      return `${pos} · ${inflectionType}`;
-    }
-    
-    return pos;
-  };
-  
-  // 格式化定义显示 - 简洁显示
-  const formatDefinitions = (definitions: string[]): string => {
-    if (definitions.length === 0) return '';
-    
-    // 如果是单个简短定义，直接返回
-    if (definitions.length === 1 && definitions[0].length < 100) {
-      return definitions[0].replace(/^\d+\.\s*/, '');
-    }
-    
-    // 多个简短定义，用分号连接
-    if (definitions.every(def => def.length < 60)) {
-      return definitions.map(def => def.replace(/^\d+\.\s*/, '')).join('; ');
-    }
-    
-    // 返回第一个定义（如果需要显示更多，用户可点击展开）
-    return definitions[0].replace(/^\d+\.\s*/, '');
-  };
-  
-   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div className="p-4">
-        {/* 标题行 - 单词和词性 */}
-        <div className="flex flex-wrap items-start gap-2 mb-2">
-          <h3 className="text-lg font-bold text-slate-900 flex-1">{entry.word}</h3>
-          {entry.partOfSpeech && (
-            <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${getPosColor(entry.partOfSpeech)} shrink-0`}>
-              {getPosDisplayText(entry)}
-            </span>
-          )}
-        </div>
-        
-        {/* 关系指示器 - 紧凑显示 */}
-        <div className="mb-3 space-y-1">
-          {/* 变体形式显示根形式 */}
-          {entry.rootWord && entry.rootWord.toLowerCase() !== entry.word.toLowerCase() && (
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-indigo-400 font-bold">→</span>
-              <span className="text-indigo-500 font-medium">Root form: </span>
-              <span className="text-indigo-600 font-bold">{entry.rootWord}</span>
-            </div>
-          )}
-          
-          {/* 词根形式显示变体 */}
-          {entry.variantOf && (
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-emerald-400 font-bold">↳</span>
-              <span className="text-emerald-500 font-medium">Variant: </span>
-              <span className="text-emerald-600 font-bold">{entry.variantOf}</span>
-            </div>
-          )}
-          
-          {/* 发音信息 */}
-          {entry.pronunciation && (
-            <div className="text-xs text-slate-500 font-mono">/{entry.pronunciation}/</div>
-          )}
-        </div>
-        
-        {/* 定义 - 简洁显示 */}
-        {entry.definitions.length > 0 && (
-          <div className="mt-2">
-            <div className="text-sm text-slate-700 leading-relaxed">
-              {(() => {
-                const definitionsToShow = entry.definitions.slice(0, showAllDefinitions ? entry.definitions.length : 3);
-                
-                // 如果只有一个定义或定义都很短，合并显示
-                if (definitionsToShow.length <= 3 && definitionsToShow.every(def => def.length < 60)) {
-                  return (
-                    <div>
-                      {definitionsToShow.map((def, idx) => {
-                        const cleanedDef = def.replace(/^\d+\.\s*/, ''); // 移除开头的数字编号
-                        const isLast = idx === definitionsToShow.length - 1;
-                        return (
-                          <span key={idx}>
-                            {cleanedDef}
-                            {!isLast && '; '}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  );
-                }
-                
-                // 否则显示为列表
-                return (
-                  <div className="space-y-1">
-                    {definitionsToShow.map((def, idx) => (
-                      <div key={idx} className="flex items-start gap-2">
-                        <span className="text-xs font-bold text-slate-400 mt-0.5 shrink-0">{idx + 1}.</span>
-                        <span className="flex-1">{def}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-            
-            {entry.definitions.length > 3 && (
-              <button
-                onClick={(e) => { e.preventDefault(); setShowAllDefinitions(!showAllDefinitions); }}
-                className="text-xs font-bold text-indigo-500 hover:text-indigo-700 mt-2"
-              >
-                {showAllDefinitions ? 'Show less' : `Show ${entry.definitions.length - 3} more definitions`}
-              </button>
-            )}
-          </div>
-        )}
-        
-        {/* 词形变化分析描述 */}
-        {entry.inflectionAnalysis?.description && (
-          <div className="mt-2 pt-2 border-t border-slate-100">
-            <p className="text-xs text-slate-500 font-medium">{entry.inflectionAnalysis.description}</p>
-          </div>
-        )}
-        
-        {/* 详细词形变化分析（可折叠） */}
-        {(entry.inflectionAnalysis || entry.selfInflectionAnalysis) && (
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <button
-              onClick={(e) => { e.preventDefault(); setShowInflectionAnalysis(!showInflectionAnalysis); }}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider"
-            >
-              <span>Inflection Details</span>
-              <span className="text-slate-400">{showInflectionAnalysis ? '−' : '+'}</span>
-            </button>
-            {showInflectionAnalysis && (
-              <div className="mt-2 space-y-2">
-                {entry.inflectionAnalysis && (
-                  <>
-                    {entry.inflectionAnalysis.inflectionType && (
-                      <div className="text-xs">
-                        <span className="font-bold text-slate-500">Type: </span>
-                        <span className="text-slate-700">{entry.inflectionAnalysis.inflectionType}</span>
-                      </div>
-                    )}
-                    {entry.inflectionAnalysis.grammar && Object.keys(entry.inflectionAnalysis.grammar).length > 0 && (
-                      <div className="text-xs">
-                        <span className="font-bold text-slate-500">Grammar: </span>
-                        <span className="text-slate-700">
-                          {Object.entries(entry.inflectionAnalysis.grammar)
-                            .filter(([_, value]) => value !== null && value !== undefined && (!Array.isArray(value) || value.length > 0))
-                            .map(([key, value]) => {
-                              const formattedValue = Array.isArray(value) ? value.join(', ') : String(value);
-                              return `${key}: ${formattedValue}`;
-                            })
-                            .join('; ')}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* 词源（可折叠） */}
-        {entry.etymology && (
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <button
-              onClick={(e) => { e.preventDefault(); setShowEtymology(!showEtymology); }}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-wider"
-            >
-              <span>Etymology</span>
-              <span className="text-slate-400">{showEtymology ? '−' : '+'}</span>
-            </button>
-            {showEtymology && (
-              <div className="mt-2">
-                <p className="text-xs text-slate-600 leading-relaxed font-mono">{entry.etymology}</p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* 示例 */}
-        {entry.examples && entry.examples.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Examples</h4>
-            <div className="space-y-1">
-              {entry.examples.slice(0, 2).map((example, idx) => (
-                <div key={idx} className="text-xs text-slate-600 italic">"{example}"</div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* 同义词和反义词 */}
-        {(entry.synonyms && entry.synonyms.length > 0) || (entry.antonyms && entry.antonyms.length > 0) ? (
-          <div className="mt-3 pt-3 border-t border-slate-100">
-            <div className="flex flex-col gap-2">
-              {entry.synonyms && entry.synonyms.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Synonyms</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {entry.synonyms.slice(0, 3).map((syn, idx) => (
-                      <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
-                        {syn}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {entry.antonyms && entry.antonyms.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Antonyms</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {entry.antonyms.slice(0, 3).map((ant, idx) => (
-                      <span key={idx} className="text-xs bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100">
-                        {ant}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-};
 
 interface TermSidebarProps {
   word: string;
@@ -416,7 +23,7 @@ interface TermSidebarProps {
   aiSuggestion: GeminiSuggestion | null;
   isAiLoading: boolean;
   aiError: string | null;
-  onAiSuggest: (targetWord: string, targetSentence: string) => Promise<void>;
+  onAiSuggest: (targetWord: string, targetSentence: string, pipelineData?: any) => Promise<void>;
   settings: UserSettings;
 }
 
@@ -447,210 +54,158 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     ...existingTerm
   });
   
-   const [wiktionaryData, setWiktionaryData] = useState<WiktionaryEntry[] | null>(null);
+  const [wiktionaryData, setWiktionaryData] = useState<WiktionaryEntry[] | null>(null);
   const [isLoadingWiktionary, setIsLoadingWiktionary] = useState(false);
-  const [partOfSpeechFilter, setPartOfSpeechFilter] = useState<string>('all');
-  const [showAllDictionaryEntries, setShowAllDictionaryEntries] = useState(false);
-  const [expandedPosGroups, setExpandedPosGroups] = useState<Set<string>>(new Set());
+  
+  // Wiktionary filter state
+  const [posFilter, setPosFilter] = useState<string>('all');
+  const [showInflections, setShowInflections] = useState(true);
+  
+  // Theme color mapping
+  const getThemeClasses = () => {
+    const theme = settings?.theme || 'auto';
+    switch (theme) {
+      case 'dark':
+        return {
+          bg: 'bg-slate-900', text: 'text-slate-100', border: 'border-slate-700',
+          cardBg: 'bg-slate-800', hoverBg: 'hover:bg-slate-700',
+          mutedText: 'text-slate-400', mutedBg: 'bg-slate-800/50',
+          navBg: 'bg-slate-800/80', inputBg: 'bg-slate-700',
+          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+          buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600',
+          accent: 'indigo', accentBg: 'bg-indigo-600', accentText: 'text-indigo-400'
+        };
+      case 'night':
+        return {
+          bg: 'bg-indigo-950', text: 'text-indigo-100', border: 'border-indigo-800',
+          cardBg: 'bg-indigo-900', hoverBg: 'hover:bg-indigo-800',
+          mutedText: 'text-indigo-400', mutedBg: 'bg-indigo-900/50',
+          navBg: 'bg-indigo-900/80', inputBg: 'bg-indigo-900',
+          buttonPrimary: 'bg-indigo-700 text-white hover:bg-indigo-800',
+          buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700',
+          accent: 'indigo', accentBg: 'bg-indigo-600', accentText: 'text-indigo-400'
+        };
+      case 'contrast':
+        return {
+          bg: 'bg-black', text: 'text-white', border: 'border-white',
+          cardBg: 'bg-gray-900', hoverBg: 'hover:bg-gray-800',
+          mutedText: 'text-gray-400', mutedBg: 'bg-gray-900/50',
+          navBg: 'bg-black/80', inputBg: 'bg-gray-900',
+          buttonPrimary: 'bg-white text-black hover:bg-gray-200',
+          buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800',
+          accent: 'white', accentBg: 'bg-white', accentText: 'text-white'
+        };
+      case 'sepia':
+        return {
+          bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-200',
+          cardBg: 'bg-amber-100', hoverBg: 'hover:bg-amber-200',
+          mutedText: 'text-amber-700', mutedBg: 'bg-amber-100/50',
+          navBg: 'bg-amber-100/80', inputBg: 'bg-amber-50',
+          buttonPrimary: 'bg-amber-600 text-white hover:bg-amber-700',
+          buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300',
+          accent: 'amber', accentBg: 'bg-amber-600', accentText: 'text-amber-600'
+        };
+      case 'paper':
+        return {
+          bg: 'bg-stone-50', text: 'text-stone-800', border: 'border-stone-200',
+          cardBg: 'bg-stone-100', hoverBg: 'hover:bg-stone-200',
+          mutedText: 'text-stone-600', mutedBg: 'bg-stone-100/50',
+          navBg: 'bg-stone-100/80', inputBg: 'bg-stone-50',
+          buttonPrimary: 'bg-stone-600 text-white hover:bg-stone-700',
+          buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300',
+          accent: 'stone', accentBg: 'bg-stone-600', accentText: 'text-stone-600'
+        };
+      default:
+        return {
+          bg: 'bg-white', text: 'text-slate-900', border: 'border-slate-200',
+          cardBg: 'bg-white', hoverBg: 'hover:bg-slate-100',
+          mutedText: 'text-slate-500', mutedBg: 'bg-slate-50',
+          navBg: 'bg-white/80', inputBg: 'bg-slate-50',
+          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+          buttonSecondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+          accent: 'indigo', accentBg: 'bg-indigo-600', accentText: 'text-indigo-600'
+        };
+    }
+  };
+  
+  const theme = getThemeClasses();
+
+  // Process and filter Wiktionary data
+  const processedWiktionaryData = useMemo(() => {
+    if (!wiktionaryData || wiktionaryData.length === 0) return null;
+    
+    let entries = [...wiktionaryData];
+    
+    // Remove duplicate definitions
+    const seen = new Set<string>();
+    entries = entries.filter(entry => {
+      const key = `${entry.word}-${entry.partOfSpeech}-${entry.definitions.join('|')}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    
+    // Filter by part of speech
+    if (posFilter !== 'all') {
+      entries = entries.filter(entry => {
+        if (!entry.partOfSpeech) return posFilter === 'other';
+        const pos = entry.partOfSpeech.toLowerCase();
+        switch (posFilter) {
+          case 'noun': return pos.includes('noun') || pos.includes('n.');
+          case 'verb': return pos.includes('verb') || pos.includes('v.');
+          case 'adj': return pos.includes('adj') || pos.includes('adjective');
+          case 'adv': return pos.includes('adv') || pos.includes('adverb');
+          default: return true;
+        }
+      });
+    }
+    
+    // Sort: root/normal first, then variants
+    const typeOrder: Record<string, number> = { 'root': 0, 'normal': 1, 'variant': 2 };
+    entries.sort((a, b) => {
+      const aType = typeOrder[a.entryType || 'normal'] ?? 3;
+      const bType = typeOrder[b.entryType || 'normal'] ?? 3;
+      return aType - bType;
+    });
+    
+    return entries;
+  }, [wiktionaryData, posFilter]);
+
+  // Get available part of speech filters from data
+  const availablePosFilters = useMemo(() => {
+    if (!wiktionaryData) return [];
+    const posSet = new Set<string>();
+    wiktionaryData.forEach(entry => {
+      if (entry.partOfSpeech) {
+        const pos = entry.partOfSpeech.toLowerCase();
+        if (pos.includes('noun') || pos.includes('n.')) posSet.add('noun');
+        else if (pos.includes('verb') || pos.includes('v.')) posSet.add('verb');
+        else if (pos.includes('adj')) posSet.add('adj');
+        else if (pos.includes('adv')) posSet.add('adv');
+      }
+    });
+    return Array.from(posSet);
+  }, [wiktionaryData]);
+  
+  // 梵语处理状态
+  const [sanskritAnalysisResult, setSanskritAnalysisResult] = useState<AnalyzeResult | null>(null);
+  const [isProcessingSanskrit, setIsProcessingSanskrit] = useState(false);
+  const [sanskritError, setSanskritError] = useState<string | null>(null);
+  const [showSanskritAnalysis, setShowSanskritAnalysis] = useState(false);
   
   const sidebarRef = useRef<HTMLFormElement>(null);
   
-  // 过滤按钮颜色映射
-  const filterButtonColors: Record<string, string> = {
-    'all': 'bg-indigo-100 text-indigo-700 border-indigo-300',
-    'verb': 'bg-emerald-100 text-emerald-700 border-emerald-300',
-    'noun': 'bg-blue-100 text-blue-700 border-blue-300',
-    'adjective': 'bg-amber-100 text-amber-700 border-amber-300',
-    'adverb': 'bg-purple-100 text-purple-700 border-purple-300',
-    'other': 'bg-slate-100 text-slate-700 border-slate-300'
-  };
-  
-   // 过滤文本颜色映射
-  const filterTextColors: Record<string, string> = {
-    'all': 'text-indigo-600',
-    'verb': 'text-emerald-600',
-    'noun': 'text-blue-600',
-    'adjective': 'text-amber-600',
-    'adverb': 'text-purple-600',
-    'other': 'text-slate-600'
-  };
-  
-  // 词性标签颜色映射 (用于分组标题)
-  const posColors: Record<string, string> = {
-    'noun': 'bg-blue-50 text-blue-700 border-blue-200',
-    'verb': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'adj': 'bg-amber-50 text-amber-700 border-amber-200',
-    'adjective': 'bg-amber-50 text-amber-700 border-amber-200',
-    'adv': 'bg-purple-50 text-purple-700 border-purple-200',
-    'adverb': 'bg-purple-50 text-purple-700 border-purple-200',
-    'pron': 'bg-rose-50 text-rose-700 border-rose-200',
-    'preposition': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    'conjunction': 'bg-lime-50 text-lime-700 border-lime-200',
-    'interjection': 'bg-pink-50 text-pink-700 border-pink-200',
-    'article': 'bg-indigo-50 text-indigo-700 border-indigo-200'
-  };
-  
-  const getPosColor = (pos: string = ''): string => {
-    const posKey = pos.toLowerCase();
-    for (const [key, color] of Object.entries(posColors)) {
-      if (posKey.includes(key)) {
-        return color;
-      }
-    }
-    return 'bg-slate-50 text-slate-700 border-slate-200';
-  };
-  
-  // Reset expanded state when word or filter changes
-  useEffect(() => {
-    setShowAllDictionaryEntries(false);
-  }, [word, partOfSpeechFilter]);
-  
-  // Use a ref to track if we've already analyzed this specific word instance to prevent double-firing
   const analyzedWordRef = useRef<string | null>(null);
   const hasResultRef = useRef<boolean>(false);
   const isMountedRef = useRef(true);
   const autoSavedRef = useRef(false);
-  
-  // 检查词性是否匹配过滤条件
-  const matchesPartOfSpeechFilter = (entry: WiktionaryEntry): boolean => {
-    if (partOfSpeechFilter === 'all') return true;
-    
-    const pos = entry.partOfSpeech?.toLowerCase() || '';
-    
-    switch (partOfSpeechFilter) {
-      case 'verb':
-        return pos.includes('verb');
-      case 'noun':
-        return pos.includes('noun');
-      case 'adjective':
-        return pos.includes('adj') || pos.includes('adjective');
-      case 'adverb':
-        return pos.includes('adv') || pos.includes('adverb');
-      case 'other':
-        return !pos.includes('verb') && 
-               !pos.includes('noun') && 
-               !pos.includes('adj') && 
-               !pos.includes('adjective') &&
-               !pos.includes('adv') && 
-               !pos.includes('adverb');
-      default:
-        return true;
-    }
-  };
   
   // Reset auto-saved flag when word changes
   useEffect(() => {
     autoSavedRef.current = false;
   }, [word]);
 
-  // Helper function to render grammar analysis in a user-friendly format
-   const renderGrammarAnalysis = (grammar: any): React.ReactNode => {
-     if (!grammar) return 'No grammar analysis available';
-     
-     if (typeof grammar === 'string') {
-       return <p className="text-sm text-slate-700 leading-relaxed font-medium">{grammar}</p>;
-     }
-     
-     if (typeof grammar === 'object' && grammar !== null) {
-       // Check if it's the DeepSeek object format
-       if (grammar.morphologicalForm || grammar.tense || grammar.mood || grammar.case || grammar.partOfSpeech) {
-         return (
-           <div className="space-y-2">
-             {/* Part of Speech (always show if available) */}
-             {grammar.partOfSpeech && (
-               <div className="flex items-center">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Part of Speech:</span>
-                 <span className="flex-1">
-                   <span className="inline-block px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                     {grammar.partOfSpeech}
-                   </span>
-                 </span>
-               </div>
-             )}
-             {grammar.morphologicalForm && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Form:</span>
-                 <span className="flex-1 text-slate-700">{grammar.morphologicalForm}</span>
-               </div>
-             )}
-             {grammar.tense && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Tense:</span>
-                 <span className="flex-1 text-slate-700">{grammar.tense}</span>
-               </div>
-             )}
-             {grammar.mood && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Mood:</span>
-                 <span className="flex-1 text-slate-700">{grammar.mood}</span>
-               </div>
-             )}
-             {grammar.case && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Case:</span>
-                 <span className="flex-1 text-slate-700">{grammar.case}</span>
-               </div>
-             )}
-             {(grammar.separablePrefix === 'Yes' || grammar.separablePrefix === true) && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Separable:</span>
-                 <span className="flex-1 text-slate-700">Yes ({grammar.separablePrefix === 'Yes' ? 'Prefix separates' : 'Has separable prefix'})</span>
-               </div>
-             )}
-             {(grammar.compound === 'Yes' || grammar.compound === true) && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Compound:</span>
-                 <span className="flex-1 text-slate-700">Yes ({grammar.compound === 'Yes' ? 'Compound verb' : 'Compound word'})</span>
-               </div>
-             )}
-             {grammar.gender && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Gender:</span>
-                 <span className="flex-1 text-slate-700">{grammar.gender}</span>
-               </div>
-             )}
-             {grammar.number && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Number:</span>
-                 <span className="flex-1 text-slate-700">{grammar.number}</span>
-               </div>
-             )}
-             {grammar.voice && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Voice:</span>
-                 <span className="flex-1 text-slate-700">{grammar.voice}</span>
-               </div>
-             )}
-             {grammar.person && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Person:</span>
-                 <span className="flex-1 text-slate-700">{grammar.person}</span>
-               </div>
-             )}
-             {grammar.degree && (
-               <div className="flex">
-                 <span className="w-32 text-xs font-bold text-slate-500 uppercase tracking-wider">Degree:</span>
-                 <span className="flex-1 text-slate-700">{grammar.degree}</span>
-               </div>
-             )}
-           </div>
-         );
-       }
-       
-       // Fallback: show as JSON
-       return (
-         <pre className="text-xs bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
-           {JSON.stringify(grammar, null, 2)}
-         </pre>
-       );
-     }
-     
-     return <p className="text-sm text-slate-700 leading-relaxed font-medium">Invalid grammar format</p>;
-   };
-
-
-
-   // Cleanup on unmount
+  // Cleanup on unmount
    useEffect(() => {
      return () => {
        console.debug('[TermSidebar] Component unmounting', {
@@ -666,6 +221,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
       targetWord,
       targetSentenceLength: targetSentence.length,
       language: language?.name,
+      languageId: language?.id,
       provider: aiConfig?.provider || 'unknown'
     });
     
@@ -675,16 +231,41 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     }
     
     try {
+      // 梵语情况：调用 LLM API 结合句子上下文进行详细分析
+      if (language.id === 'sa') {
+        // 准备 pipeline 数据供 LLM 使用
+        const pipelineData = sanskritAnalysisResult?.success ? {
+          segments: sanskritAnalysisResult.segments?.map(seg => ({
+            text: seg.unsandhied,
+            lemma: seg.lemma,
+            meaning: seg.meanings?.[0]
+          })),
+          normalizedText: targetWord
+        } : undefined;
+        
+        // 调用 LLM 进行梵语分析
+        await onAiSuggest(targetWord, targetSentence, pipelineData);
+        hasResultRef.current = true;
+        autoSavedRef.current = true;
+        return;
+      }
+      
+      // 非梵语语言使用原有逻辑
       if (typeof onAiSuggest !== 'function') {
         console.error('[TermSidebar] onAiSuggest is not a function:', onAiSuggest);
         return;
       }
       await onAiSuggest(targetWord, targetSentence);
       hasResultRef.current = true;
+      autoSavedRef.current = true;
+      await onAiSuggest(targetWord, targetSentence);
+      // 阻止自动保存 - 用户应该手动保存AI分析结果
+      hasResultRef.current = true;
+      autoSavedRef.current = true;
     } catch (error) {
-      console.error('[TermSidebar] Error calling parent AI suggest:', error);
+      console.error('[TermSidebar] Error calling AI suggest:', error);
     }
-  }, [language, aiConfig, onAiSuggest]);
+  }, [language, aiConfig, onAiSuggest, sanskritAnalysisResult]);
 
   // Fetch Wiktionary data when word changes - non-blocking
   useEffect(() => {
@@ -693,6 +274,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     
     const fetchWiktionaryData = async () => {
       if (!word || !language) return;
+      if (language.id === 'sa') return; // Sanskrit handled by pipeline
       
       console.debug('[TermSidebar] Fetching Wiktionary data for:', word);
       setIsLoadingWiktionary(true);
@@ -840,8 +422,88 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     analyzedWordRef.current = word;
     hasResultRef.current = false;
     
+    // Reset Sanskrit processing when word changes or language is not Sanskrit
+    setSanskritAnalysisResult(null);
+    setShowSanskritAnalysis(false);
+    setSanskritError(null);
+    setIsProcessingSanskrit(false);
+    if (language?.id === 'sa') {
+      console.debug('[TermSidebar] Sanskrit processing reset for new Sanskrit word:', word);
+    } else {
+      console.debug('[TermSidebar] Sanskrit processing reset (non-Sanskrit language)');
+    }
+    
     console.debug('[TermSidebar] Form reset complete, auto-analysis disabled');
   }, [word, existingTerm, allTerms, language]);
+
+  // 梵语处理函数
+  const processSanskritText = async (text: string) => {
+    if (!text.trim() || language?.id !== 'sa') return;
+    
+    setIsProcessingSanskrit(true);
+    setSanskritError(null);
+    
+    try {
+      console.debug('[TermSidebar] Processing Sanskrit text:', text);
+      const result = await sanskritService.analyze(text);
+      
+      // 提取分析结果填充表单
+      if (result.success && result.segments) {
+        let analysisText = '';
+        let translationText = '';
+        
+        for (const seg of result.segments) {
+          const dmTag = seg.tag || '';
+          const dmMeanings = seg.meanings || [];
+          const text = seg.unsandhied || '';
+          const originalText = seg.original || text;
+          
+          if (text) {
+            const displayText = originalText !== text ? `${originalText} → ${text}` : text;
+            analysisText += `\n${displayText}`;
+            
+            if (dmTag) {
+              analysisText += `\n  Grammar: ${dmTag}`;
+            }
+            
+            if (dmMeanings.length > 0) {
+              analysisText += `\n  Meanings: ${dmMeanings.slice(0, 2).join('; ')}`;
+              if (!translationText) {
+                translationText = dmMeanings[0];
+              }
+            }
+          }
+        }
+        
+        // 填充表单数据
+        setFormData(prev => ({
+          ...prev,
+          translation: translationText || prev.translation,
+          notes: `${prev.notes || ''}\n\nDharma Mitra 分析结果\n${analysisText.trim()}`.trim()
+        }));
+      }
+      
+      setSanskritAnalysisResult(result);
+      setShowSanskritAnalysis(true);
+      console.debug('[TermSidebar] Sanskrit analysis result:', result);
+    } catch (error) {
+      console.error('[TermSidebar] Sanskrit processing error:', error);
+      setSanskritError(error instanceof Error ? error.message : '梵语处理失败');
+    } finally {
+      setIsProcessingSanskrit(false);
+    }
+  };
+
+  // 当语言是梵语且文本变化时自动处理
+  useEffect(() => {
+    if (language?.id === 'sa' && word.trim() && !sanskritAnalysisResult) {
+      const timer = setTimeout(() => {
+        processSanskritText(word);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [word, language?.id]);
 
   // Helper function to format grammar for notes
   const formatGrammarForNotes = (grammar: any): string => {
@@ -905,10 +567,20 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
         const newTranslation = prev.translation ? prev.translation : aiSuggestion.translation;
         
         const grammarNote = formatGrammarForNotes(aiSuggestion.grammar);
-        const newNotes = grammarNote && prev.notes?.includes(grammarNote) 
+        
+        // Build notes including Chinese translation
+        let notesContent = '';
+        if (aiSuggestion.chineseTranslation) {
+          notesContent += `【中文翻译】${aiSuggestion.chineseTranslation}\n\n`;
+        }
+        if (grammarNote) {
+          notesContent += `${grammarNote}\n`;
+        }
+        
+        const newNotes = notesContent && prev.notes?.includes(notesContent.slice(0, 50))
           ? prev.notes 
-          : grammarNote 
-            ? `${grammarNote}\n\n${prev.notes || ''}`.trim()
+          : notesContent
+            ? `${notesContent}${prev.notes || ''}`.trim()
             : prev.notes;
 
         const updates: Partial<Term> = {
@@ -935,8 +607,9 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   // Auto-save on click if enabled
   useEffect(() => {
     if (!settings?.autoSaveOnClick || existingTerm || autoSavedRef.current) return;
+    // Don't auto-save when AI suggestion is received (user should manually save after AI analysis)
     const hasTranslation = formData.translation && formData.translation.trim() !== '';
-    const hasData = wiktionaryData || aiSuggestion;
+    const hasData = wiktionaryData;
     if (hasTranslation && hasData) {
       const termToSave: Term = {
         id: existingTerm?.id || `${Date.now()}`,
@@ -1013,26 +686,26 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
      <form 
        ref={sidebarRef}
        onSubmit={handleSubmit} 
-       className="flex flex-col h-full bg-white shadow-2xl animate-in slide-in-from-right-4 duration-300 relative"
+       className={`flex flex-col h-full ${theme.cardBg} shadow-2xl animate-in slide-in-from-right-4 duration-300 relative ${theme.border} border-r`}
       >
        
-       <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
+       <div className={`p-6 border-b flex items-center justify-between ${theme.cardBg} sticky top-0 z-10`}>
         <div className="flex flex-col flex-1 min-w-0 pr-4">
-          <h2 className="font-black text-2xl text-slate-900 flex items-center gap-2 group">
+          <h2 className={`font-black text-2xl flex items-center gap-2 group ${theme.text}`}>
             <span className="truncate">{word}</span>
             {existingTerm && (
-              <span className="shrink-0 text-[8px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full border border-indigo-100 uppercase tracking-[0.2em] font-black">
+              <span className={`shrink-0 text-[8px] ${theme.accentBg}/10 ${theme.accentText} px-2 py-1 rounded-full border ${theme.accentBg}/20 uppercase tracking-[0.2em] font-black`}>
                 Stored
               </span>
             )}
            </h2>
          </div>
-        <button type="button" onClick={onClose} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors shrink-0">
+        <button type="button" onClick={onClose} className={`p-2.5 hover:${theme.hoverBg} rounded-full ${theme.mutedText} transition-colors shrink-0`}>
           <X size={20} strokeWidth={2.5} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className={`flex-1 overflow-y-auto p-6 space-y-8 ${theme.bg}`}>
         <div className="flex gap-2">
           <button 
             type="button" 
@@ -1040,7 +713,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
             className={`flex-1 py-4 px-4 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border
               ${isLinkingMode 
                 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' 
-                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}
+                : `${theme.mutedBg} ${theme.border} ${theme.mutedText} ${theme.hoverBg}`}
             `}
             title="Link another fragment (e.g. separable prefix)"
           >
@@ -1049,6 +722,266 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           </button>
         </div>
 
+        {/* Sanskrit Analysis Display - Dharma Mitra Based */}
+        {language?.id === 'sa' && showSanskritAnalysis && sanskritAnalysisResult && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                <Sparkles size={12} /> Dharma Mitra Analysis
+              </label>
+              <button 
+                onClick={() => setShowSanskritAnalysis(false)}
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest"
+              >
+                Hide
+              </button>
+            </div>
+
+            {/* Word Header */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-100 p-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-900 font-serif mb-1">
+                  {word}
+                </div>
+                <div className="text-sm text-purple-700 font-mono">
+                  {sanskritAnalysisResult.input || word}
+                </div>
+              </div>
+            </div>
+
+            {/* Segment Cards - Each word from Dharma Mitra */}
+            <div className="space-y-3">
+              {sanskritAnalysisResult.segments?.map((segment: SanskritSegment, segIdx: number) => {
+                const dmTag = segment.tag || '';
+                const dmMeanings = segment.meanings || [];
+                const text = segment.unsandhied || '';
+                const lemma = segment.lemma || '';
+                
+                return (
+                  <div key={segIdx} className="bg-white rounded-2xl border border-purple-200 overflow-hidden">
+                    {/* Segment Header */}
+                    <div className="bg-purple-50 px-4 py-3 border-b border-purple-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                            {segIdx + 1}
+                          </div>
+                          <div>
+                            <div className="text-base font-mono font-bold text-purple-900">
+                              {text}
+                            </div>
+                            {lemma && lemma !== text && (
+                              <div className="text-xs text-purple-600">
+                                Lemma: {lemma}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dharma Mitra Grammar */}
+                    {dmTag && (
+                      <div className="px-4 py-3 border-b border-purple-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <BookOpen size={12} className="text-purple-600" />
+                          <span className="text-[10px] font-bold text-purple-700 uppercase">Grammar</span>
+                        </div>
+                        <div className="text-sm text-purple-800">
+                          {dmTag}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dharma Mitra Meanings */}
+                    {dmMeanings.length > 0 && (
+                      <div className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Book size={12} className="text-indigo-600" />
+                          <span className="text-[10px] font-bold text-indigo-700 uppercase">Meanings</span>
+                        </div>
+                        <ul className="space-y-2">
+                          {dmMeanings.slice(0, 5).map((meaning: string, mIdx: number) => (
+                            <li key={mIdx} className="text-sm text-slate-700 leading-relaxed whitespace-normal break-words">
+                              <span className="text-indigo-400 font-bold mr-2">{mIdx + 1}.</span>
+                              {meaning}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* No data */}
+                    {!dmTag && dmMeanings.length === 0 && (
+                      <div className="p-4 text-center text-xs text-slate-400 italic">
+                        No analysis available
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+         {/* Sanskrit Processing Loading State */}
+         {language?.id === 'sa' && isProcessingSanskrit && (
+           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2">
+               <Sparkles size={12} /> Processing with Dharma Mitra...
+             </label>
+             <div className="bg-white rounded-2xl border border-purple-200 p-6 flex flex-col items-center justify-center">
+               <Loader2 size={24} className="animate-spin text-purple-500 mb-3" />
+               <div className="text-xs text-slate-500">
+                 Analyzing Sanskrit text...
+               </div>
+            </div>
+           </div>
+         )}
+
+         {/* Sanskrit Processing Error */}
+         {language?.id === 'sa' && sanskritError && (
+           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <label className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] flex items-center gap-2">
+               <AlertCircle size={12} /> Processing Error
+             </label>
+             <div className="bg-rose-50 rounded-2xl border border-rose-200 p-4">
+               <p className="text-sm text-rose-700">{sanskritError}</p>
+               <button
+                 onClick={() => processSanskritText(word)}
+                 className="mt-3 text-xs font-bold text-rose-600 hover:text-rose-800 uppercase tracking-widest"
+               >
+                 Retry
+               </button>
+             </div>
+           </div>
+         )}
+
+         {/* Sanskrit Processing Error */}
+         {language?.id === 'sa' && sanskritError && (
+           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+               <AlertCircle size={12} /> Sanskrit Processing Error
+             </label>
+             <div className="bg-rose-50 rounded-2xl border border-rose-200 p-4">
+               <div className="flex items-start gap-3">
+                 <AlertCircle size={16} className="text-rose-500 mt-0.5" />
+                 <div className="flex-1">
+                   <p className="text-sm text-rose-700">{sanskritError}</p>
+                   <button 
+                     onClick={() => processSanskritText(word)}
+                     className="mt-2 text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1"
+                   >
+                     <RefreshCw size={12} /> Retry
+                   </button>
+                 </div>
+               </div>
+             </div>
+           </div>
+         )}
+
+          {/* Sanskrit Processing Trigger Button */}
+          {language?.id === 'sa' && !showSanskritAnalysis && !isProcessingSanskrit && !sanskritError && !sanskritAnalysisResult && (
+           <div className="space-y-3">
+              <button
+                onClick={() => processSanskritText(word)}
+                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-2xl px-5 py-4 font-bold hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 active:scale-95"
+                disabled={isProcessingSanskrit}
+              >
+                <Braces size={20} />
+                <span>Analyze Sanskrit Text</span>
+              </button>
+            </div>
+          )}
+
+          {/* Sanskrit AI Analysis Display - Shows detailed Sanskrit-specific analysis */}
+          {language?.id === 'sa' && aiSuggestion && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Sparkles size={12} /> Sanskrit AI Analysis
+                </label>
+                <button 
+                  onClick={() => handleAiSuggestLocal(word, sentence)}
+                  className="text-[10px] font-bold text-purple-400 hover:text-purple-600 uppercase tracking-widest flex items-center gap-1"
+                >
+                  <RefreshCw size={12} /> Re-analyze
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-purple-200 overflow-hidden">
+                {/* Translation */}
+                {aiSuggestion.translation && (
+                  <div className="p-4 border-b border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Book size={14} className="text-emerald-500" />
+                      <h4 className="text-xs font-bold text-slate-700">Translation (英文)</h4>
+                    </div>
+                    <div className="text-sm text-slate-700">
+                      {aiSuggestion.translation}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chinese Translation */}
+                {aiSuggestion.chineseTranslation && (
+                  <div className="p-4 border-b border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Book size={14} className="text-rose-500" />
+                      <h4 className="text-xs font-bold text-slate-700">中文翻译</h4>
+                    </div>
+                    <div className="text-sm text-slate-700">
+                      {aiSuggestion.chineseTranslation}
+                    </div>
+                  </div>
+                )}
+
+                {/* Root Word / Etymology */}
+                {aiSuggestion.rootWord && (
+                  <div className="p-4 border-b border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers size={14} className="text-amber-500" />
+                      <h4 className="text-xs font-bold text-slate-700">Root / Etymology</h4>
+                    </div>
+                    <div className="text-sm text-slate-700">
+                      {aiSuggestion.rootWord}
+                    </div>
+                  </div>
+                )}
+
+                {/* Explanation */}
+                {aiSuggestion.explanation && (
+                  <div className="p-4 border-b border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Info size={14} className="text-indigo-500" />
+                      <h4 className="text-xs font-bold text-slate-700">Explanation</h4>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      {aiSuggestion.explanation}
+                    </div>
+                  </div>
+                )}
+
+                {/* Examples */}
+                {aiSuggestion.examples && aiSuggestion.examples.length > 0 && (
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Quote size={14} className="text-purple-500" />
+                      <h4 className="text-xs font-bold text-slate-700">Examples</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {aiSuggestion.examples.slice(0, 3).map((example: string, idx: number) => (
+                        <div key={idx} className="text-sm text-slate-600 bg-slate-50 p-2 rounded italic">
+                          {example}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
 
         {/* AI Analysis Trigger Button */}
@@ -1068,37 +1001,193 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           </div>
         )}
         
-        {/* Dictionary Content Display (Replaces Visual Anchor) */}
-        {(aiSuggestion || isAiLoading || aiError) && (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <BookOpen size={12} /> Linguistic Analysis
-                </span>
-                {!isAiLoading && (
+        {/* Dictionary Content Display (Local Dictionary + AI Analysis) - PROMINENT WIKTIONARY SECTION */}
+        {(wiktionaryData || isLoadingWiktionary || aiSuggestion || isAiLoading || aiError) && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* PROMINENT WIKTIONARY SECTION */}
+            {processedWiktionaryData && processedWiktionaryData.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className={`text-[10px] font-black ${theme.accentText} uppercase tracking-[0.2em] flex items-center gap-2`}>
+                    <BookOpen size={12} /> Dictionary Results
+                  </label>
                   <button 
-                    onClick={() => handleAiSuggestLocal(word, sentence)}
-                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-600 uppercase tracking-widest flex items-center gap-1"
+                    onClick={() => queryWiktionary(word, language).then(r => { if(r.success) setWiktionaryData(r.entries); })}
+                    className={`text-[10px] font-bold ${theme.mutedText} hover:${theme.accentText} uppercase tracking-widest flex items-center gap-1`}
                   >
-                    <Sparkles size={12} /> Re-analyze
+                    <RefreshCw size={12} /> Refresh
                   </button>
+                </div>
+                
+                {/* Filter Controls */}
+                {availablePosFilters.length > 1 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Filter size={12} className={theme.mutedText} />
+                    <button
+                      onClick={() => setPosFilter('all')}
+                      className={`px-2 py-1 text-[10px] rounded-lg transition-colors ${posFilter === 'all' ? theme.accentBg + ' text-white' : theme.mutedBg + ' ' + theme.mutedText}`}
+                    >
+                      All
+                    </button>
+                    {availablePosFilters.map(pos => (
+                      <button
+                        key={pos}
+                        onClick={() => setPosFilter(pos)}
+                        className={`px-2 py-1 text-[10px] rounded-lg capitalize transition-colors ${posFilter === pos ? theme.accentBg + ' text-white' : theme.mutedBg + ' ' + theme.mutedText}`}
+                      >
+                        {pos}
+                      </button>
+                    ))}
+                  </div>
                 )}
-             </label>
-               <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200">
+                
+                {/* Wiktionary Entries */}
+                <div className={`${theme.cardBg} rounded-3xl overflow-hidden border ${theme.border} shadow-sm`}>
+                  {processedWiktionaryData.slice(0, 5).map((entry, idx) => (
+                    <div key={`entry-${idx}`} className={`p-4 ${idx > 0 ? `border-t ${theme.border}` : ''}`}>
+                      {/* Entry Header: Word, POS, IPA, Root */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-lg font-bold ${theme.text}`}>
+                            {entry.word}
+                          </span>
+                          {entry.entryType === 'root' && (
+                            <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase font-bold flex items-center gap-1">
+                              <Puzzle size={10} /> Root
+                            </span>
+                          )}
+                          {entry.entryType === 'variant' && (
+                            <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase font-bold">
+                              Variant
+                            </span>
+                          )}
+                          {entry.isInflection && (
+                            <span className="text-[8px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full uppercase font-bold flex items-center gap-1">
+                              <ArrowRight size={10} /> Inflection
+                            </span>
+                          )}
+                        </div>
+                        {entry.pronunciation && (
+                          <div className="flex items-center gap-1 text-xs text-slate-400 font-mono">
+                            <Volume2 size={12} />
+                            {entry.pronunciation.replace(/^\[|\]$/g, '')}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Part of Speech */}
+                      {entry.partOfSpeech ? (
+                        <div className="mb-2">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
+                            {entry.partOfSpeech}
+                          </span>
+                        </div>
+                      ) : null}
+                      
+                      {/* Root Word */}
+                      {(entry.rootWord || entry.rootEntry) ? (
+                        <div className="flex items-center gap-2 mb-2 text-xs">
+                          <Puzzle size={12} className="text-amber-500" />
+                          <span className={theme.mutedText}>Root:</span>
+                          <span className={`font-bold ${theme.text}`}>
+                            {entry.rootWord || entry.rootEntry?.word}
+                          </span>
+                        </div>
+                      ) : null}
+                      
+                      {/* Etymology */}
+                      {entry.etymology ? (
+                        <div className={`mb-2 p-2 rounded-lg ${theme.mutedBg} text-xs`}>
+                          <div className="flex items-center gap-1 mb-1">
+                            <Layers size={12} className="text-purple-500" />
+                            <span className="font-bold text-purple-600">Etymology</span>
+                          </div>
+                          <p className={theme.mutedText}>{entry.etymology}</p>
+                        </div>
+                      ) : null}
+                      
+                      {/* Definitions */}
+                      {entry.definitions && entry.definitions.length > 0 ? (
+                        <div className="space-y-1">
+                          {entry.definitions.slice(0, 4).filter(def => def && def.trim && def.trim()).map((def, defIdx) => (
+                            <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
+                              <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
+                              {def}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {/* END Definitions - no content below */}
+                      
+                      {/* Examples */}
+                      {entry.examples && entry.examples.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                          <div className="flex items-center gap-1 mb-2">
+                            <QuoteIcon size={12} className="text-blue-400" />
+                            <span className="text-[10px] font-bold text-blue-500 uppercase">Examples</span>
+                          </div>
+                          {entry.examples.slice(0, 2).map((ex, exIdx) => (
+                            <div key={exIdx} className={`text-xs italic pl-3 border-l-2 border-blue-200 ${theme.mutedText} mb-1`}>
+                              {ex}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Synonyms/Antonyms */}
+                      {(entry.synonyms?.length || entry.antonyms?.length) && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex gap-4">
+                          {entry.synonyms && entry.synonyms.length > 0 && (
+                            <div className="flex-1">
+                              <div className="text-[10px] font-bold text-emerald-500 uppercase mb-1">Synonyms</div>
+                              <div className="flex flex-wrap gap-1">
+                                {entry.synonyms.slice(0, 4).map((syn, i) => (
+                                  <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{syn}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {entry.antonyms && entry.antonyms.length > 0 && (
+                            <div className="flex-1">
+                              <div className="text-[10px] font-bold text-rose-500 uppercase mb-1">Antonyms</div>
+                              <div className="flex flex-wrap gap-1">
+                                {entry.antonyms.slice(0, 4).map((ant, i) => (
+                                  <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{ant}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Entry Count - hidden for now, can enable if needed */}
+                {false && processedWiktionaryData.length > 5 && (
+                  <div className="text-center text-xs text-slate-400">
+                    + {processedWiktionaryData.length - 5} more entries
+                  </div>
+                )}
+              </div>
+            )}
+               
+               {/* AI Analysis Section - After Dictionary */}
+               <div className={`${theme.cardBg} rounded-3xl overflow-hidden border ${theme.border} shadow-sm`}>
                  {aiError ? (
                      <div className="p-6 space-y-4">
                          <div className="flex items-start gap-3">
-                             <div className="shrink-0 mt-1 bg-rose-500/20 p-2 rounded-xl text-rose-400 border border-rose-500/30">
+                             <div className={`shrink-0 mt-1 p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30`}>
                                  <Info size={16} />
                              </div>
                              <div className="flex-1">
                                  <h4 className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] mb-1.5">API Error</h4>
-                                  <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                  <p className={`text-sm leading-relaxed font-medium ${theme.text}`}>
                                      {String(aiError)}
                                   </p>
                                  <button 
                                    onClick={() => handleAiSuggestLocal(word, sentence)}
-                                    className="mt-3 text-[10px] font-bold text-slate-500 hover:text-indigo-500 uppercase tracking-widest flex items-center gap-1"
+                                   className={`mt-3 text-[10px] font-bold ${theme.mutedText} hover:text-indigo-500 uppercase tracking-widest flex items-center gap-1`}
                                  >
                                    <Sparkles size={12} /> Retry Analysis
                                  </button>
@@ -1106,49 +1195,51 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                          </div>
                      </div>
                  ) : isAiLoading ? (
-                      <div className="p-8 flex flex-col items-center justify-center text-slate-400 gap-3">
-                         <Loader2 size={24} className="animate-spin text-indigo-500" />
-                         <span className="text-[10px] uppercase tracking-widest">Searching Dictionaries...</span>
+                      <div className={`p-8 flex flex-col items-center justify-center gap-3 ${theme.mutedText}`}>
+                         <Loader2 size={24} className={`animate-spin ${theme.accentText}`} />
+                         <span className="text-[10px] uppercase tracking-widest">Analyzing...</span>
                      </div>
-                 ) : (
-                      <div className="p-6 space-y-5">
-                          {/* Translation */}
-                          {aiSuggestion?.translation && (
+                  ) : (
+                       <div className="p-6 space-y-5">
+                           {/* Translation from AI */}
+                           {aiSuggestion?.translation && (
                             <div className="flex items-start gap-4">
-                              <div className="shrink-0 mt-1 bg-emerald-500/20 p-2 rounded-xl text-emerald-400 border border-emerald-500/30">
+                              <div className={`shrink-0 mt-1 p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30`}>
                                 <Book size={16} />
                               </div>
                               <div className="flex-1">
-                                <h4 className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1.5">Translation</h4>
-                                <div className="text-sm text-slate-700 leading-relaxed font-medium">
+                                <h4 className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1.5">AI Translation</h4>
+                                <div className={`text-sm leading-relaxed font-medium ${theme.text}`}>
                                   {aiSuggestion.translation}
                                 </div>
                               </div>
                             </div>
                           )}
 
-                          {/* Grammar / Linguistic Analysis */}
-                          <div className="flex items-start gap-4">
-                              <div className="shrink-0 mt-1 bg-indigo-500/20 p-2 rounded-xl text-indigo-400 border border-indigo-500/30">
-                              <Info size={16} />
+                          {/* Root Word from AI */}
+                          {aiSuggestion?.rootWord && (
+                            <div className="flex items-start gap-4">
+                              <div className={`shrink-0 mt-1 p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30`}>
+                                <Puzzle size={16} />
                               </div>
-                               <div>
-                               <h4 className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1.5">Linguistic Analysis</h4>
-                                <div className="text-sm text-slate-700 leading-relaxed font-medium">
-                                   {renderGrammarAnalysis(aiSuggestion?.grammar)}
+                              <div className="flex-1">
+                                <h4 className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] mb-1.5">Root / Etymology</h4>
+                                <div className={`text-sm leading-relaxed font-medium ${theme.text}`}>
+                                  {aiSuggestion.rootWord}
                                 </div>
-                               </div>
-                          </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Explanation */}
                           {aiSuggestion?.explanation && (
-                            <div className="flex items-start gap-4 pt-5 border-t border-slate-200">
-                              <div className="shrink-0 mt-1 bg-emerald-500/20 p-2 rounded-xl text-emerald-400 border border-emerald-500/30">
+                            <div className={`flex items-start gap-4 pt-5 border-t ${theme.border}`}>
+                              <div className={`shrink-0 mt-1 p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30`}>
                                 <BookOpen size={16} />
                               </div>
                               <div>
-                                <h4 className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-1.5">Explanation</h4>
-                                <div className="text-sm text-slate-700 leading-relaxed font-medium">
+                                <h4 className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1.5">Explanation</h4>
+                                <div className={`text-sm leading-relaxed font-medium ${theme.text}`}>
                                   {aiSuggestion.explanation}
                                 </div>
                               </div>
@@ -1156,14 +1247,14 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                           )}
 
                           {/* Examples */}
-                         {aiSuggestion?.examples && aiSuggestion.examples.length > 0 && (
-                            <div className="space-y-3 pt-5 border-t border-slate-200">
-                             <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                          {aiSuggestion?.examples && aiSuggestion.examples.length > 0 && (
+                            <div className={`space-y-3 pt-5 border-t ${theme.border}`}>
+                             <h4 className={`text-[9px] font-black ${theme.mutedText} uppercase tracking-[0.2em] flex items-center gap-2`}>
                                 <Quote size={12} /> Usage Examples
                              </h4>
                             <div className="space-y-2">
                                 {aiSuggestion.examples.map((ex, i) => (
-                                 <div key={i} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-slate-600 leading-relaxed font-medium italic">
+                                 <div key={i} className={`p-3.5 rounded-2xl border text-xs leading-relaxed font-medium italic ${theme.mutedBg} ${theme.text}`}>
                                     {ex}
                                  </div>
                                 ))}
@@ -1178,241 +1269,34 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           </div>
         )}
 
-        {/* Dictionary Content - Dictionary Links */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-              <Book size={12} /> Dictionary
-            </label>
-            <div className="flex items-center gap-3">
-              {/* 用户自定义词典链接 */}
-              {language.dictionaryUrl && (
-                <a 
-                  href={language.dictionaryUrl.replace('###', encodeURIComponent(word))}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-emerald-400 hover:text-emerald-600 transition-colors flex items-center gap-1 normal-case tracking-normal font-bold text-sm"
-                >
-                  <ExternalLink size={12} />
-                  Custom
-                </a>
-              )}
-              {/* Wiktionary 链接 */}
-              <a 
-                href={`https://${language.id}.wiktionary.org/wiki/${encodeURIComponent(word)}`}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-indigo-400 hover:text-indigo-600 transition-colors flex items-center gap-1 normal-case tracking-normal font-bold text-sm"
-              >
-                <ExternalLink size={12} />
-                Wiktionary
-              </a>
-            </div>
-          </div>
+
           
-           {/* Part of Speech Filter */}
-           <div className="flex flex-wrap gap-1.5">
-             {['all', 'verb', 'noun', 'adjective', 'adverb', 'other'].map((filter) => (
-               <button
-                 key={filter}
-                 type="button"
-                 onClick={() => setPartOfSpeechFilter(filter)}
-                 className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full border transition-all ${
-                   partOfSpeechFilter === filter
-                     ? filterButtonColors[filter] || 'bg-slate-100 text-slate-700 border-slate-300'
-                     : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50'
-                 }`}
-               >
-                 {filter === 'all' ? 'All' : 
-                  filter === 'verb' ? 'Verbs' :
-                  filter === 'noun' ? 'Nouns' :
-                  filter === 'adjective' ? 'Adjectives' :
-                  filter === 'adverb' ? 'Adverbs' : 'Other'}
-               </button>
-             ))}
-            </div>
-           
-             {/* Filter stats */}
-             {wiktionaryData && wiktionaryData.length > 0 && (() => {
-               const filteredEntries = wiktionaryData.filter(matchesPartOfSpeechFilter);
-               // Group entries by part of speech
-               const entriesByPos = new Map<string, WiktionaryEntry[]>();
-               filteredEntries.forEach(entry => {
-                 const pos = entry.partOfSpeech || 'Unknown';
-                 if (!entriesByPos.has(pos)) {
-                   entriesByPos.set(pos, []);
-                 }
-                 entriesByPos.get(pos)!.push(entry);
-               });
-               const posGroups = Array.from(entriesByPos.entries());
-               const groupCount = posGroups.length;
-               const displayedGroupCount = showAllDictionaryEntries ? groupCount : Math.min(2, groupCount);
-               const textColor = filterTextColors[partOfSpeechFilter] || 'text-indigo-600';
-               const boldTextColor = textColor.replace('600', '700') || 'text-indigo-700';
-               
-               return (
-                 <div className="flex items-center justify-between">
-                   <div className="text-[10px] font-bold uppercase tracking-wider">
-                     <span className="text-slate-400">Showing </span>
-                     <span className={textColor}>{displayedGroupCount}</span>
-                     <span className="text-slate-400"> of </span>
-                     <span className={`${boldTextColor} font-black`}>{groupCount}</span>
-                     <span className="text-slate-400"> groups</span>
-                     <span className="text-slate-400"> ({filteredEntries.length} entries)</span>
-                     {partOfSpeechFilter !== 'all' && (
-                       <span className="text-slate-400 ml-1">({wiktionaryData.length} total entries)</span>
-                     )}
-                   </div>
-                   {partOfSpeechFilter !== 'all' && (
-                     <div className={`text-[8px] px-2 py-1 rounded-full ${filterButtonColors[partOfSpeechFilter] || 'bg-slate-100 text-slate-700 border-slate-300'}`}>
-                       {partOfSpeechFilter.toUpperCase()}
-                     </div>
-                   )}
-                 </div>
-               );
-             })()}
-           
-            {/* Dictionary Details */}
-           {isLoadingWiktionary ? (
-             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center">
-               <Loader2 size={16} className="animate-spin text-indigo-500 mr-2" />
-               <span className="text-xs text-slate-500">Loading dictionary data...</span>
-             </div>
-           ) : wiktionaryData && wiktionaryData.length > 0 ? (
-                <div className="space-y-6">
-                  {( () => {
-                    // Filter and sort entries
-                    const filteredEntries = wiktionaryData
-                      .filter(matchesPartOfSpeechFilter)
-                     .sort((a, b) => {
-                         const aType = a.entryType || 'normal';
-                         const bType = b.entryType || 'normal';
-                         const typeOrder = { 'normal': 1, 'root': 2, 'variant': 3 };
-                         return (typeOrder[aType] || 4) - (typeOrder[bType] || 4);
-                       });
-                    
-                    // Group entries by part of speech
-                    const entriesByPos = new Map<string, WiktionaryEntry[]>();
-                    filteredEntries.forEach(entry => {
-                      const pos = entry.partOfSpeech || 'Unknown';
-                      if (!entriesByPos.has(pos)) {
-                        entriesByPos.set(pos, []);
-                      }
-                      entriesByPos.get(pos)!.push(entry);
-                    });
-                    
-                    // Convert to array of groups and sort by group size (largest first)
-                    const posGroups = Array.from(entriesByPos.entries())
-                      .sort(([, entriesA], [, entriesB]) => entriesB.length - entriesA.length);
-                    
-                    // Determine groups to display (if not showing all, limit to top 2 groups)
-                    const groupDisplayCount = showAllDictionaryEntries ? posGroups.length : Math.min(2, posGroups.length);
-                    const displayedGroups = posGroups.slice(0, groupDisplayCount);
-                    
-                    return (
-                      <>
-                        {displayedGroups.map(([pos, entries], groupIndex) => {
-                          const isExpanded = expandedPosGroups.has(pos);
-                          const entriesToShow = isExpanded ? entries : entries.slice(0, 1); // Show 1 entry if collapsed
-                          const posColor = getPosColor(pos);
-                          const posDisplayName = pos === 'Unknown' ? 'Other' : pos;
-                          
-                          return (
-                            <div key={`${pos}-${groupIndex}`} className="space-y-3">
-                              {/* Group header */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${posColor}`}>
-                                    {posDisplayName}
-                                  </span>
-                                  <span className="text-xs text-slate-500 font-bold">
-                                    ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newExpanded = new Set(expandedPosGroups);
-                                    if (isExpanded) {
-                                      newExpanded.delete(pos);
-                                    } else {
-                                      newExpanded.add(pos);
-                                    }
-                                    setExpandedPosGroups(newExpanded);
-                                  }}
-                                  className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
-                                >
-                                  {isExpanded ? 'Show less' : 'Show all'}
-                                  <span className="text-indigo-400 font-bold">{isExpanded ? '−' : '+'}</span>
-                                </button>
-                              </div>
-                              
-                              {/* Group entries */}
-                              <div className="space-y-4">
-                                {entriesToShow.map((entry, entryIndex) => (
-                                  <div key={`${entry.word}-${entry.partOfSpeech || 'default'}-${entryIndex}`} className="relative">
-                                    {/* Entry number */}
-                                    <div className="absolute -left-2 -top-2 w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-md">
-                                      {entryIndex + 1}
-                                    </div>
-                                    <DictionaryEntryDisplay entry={entry} />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        
-                        {/* Show more groups button */}
-                        {posGroups.length > 2 && (
-                          <div className="pt-2 flex justify-center">
-                            <button
-                              type="button"
-                              onClick={() => setShowAllDictionaryEntries(!showAllDictionaryEntries)}
-                              className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border border-indigo-300 text-indigo-600 hover:text-indigo-700 hover:border-indigo-400 hover:bg-indigo-50 flex items-center gap-1.5 transition-all"
-                            >
-                              {showAllDictionaryEntries ? 'Show fewer groups' : `Show ${posGroups.length - 2} more groups`}
-                              <span className="text-indigo-400 font-bold">{showAllDictionaryEntries ? '−' : '+'}</span>
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-               </div>
-           ) : (
-             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-               <p className="text-xs text-slate-500 text-center">No dictionary data found</p>
-             </div>
-           )}
-        </div>
         
 
 
         <div className="space-y-3">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Learning Level</label>
-          <div className="flex justify-between items-center bg-slate-50 p-2 rounded-2xl border border-slate-100 gap-1">
+          <label className={`text-[10px] font-black ${theme.mutedText} uppercase tracking-[0.2em]`}>Learning Level</label>
+          <div className={`flex justify-between items-center p-2 rounded-2xl border gap-1 ${theme.mutedBg} ${theme.border}`}>
             {[1, 2, 3, 4, 5, 99].map(s => (
                <button
                 key={s}
                 type="button"
                 onClick={() => {
                   const newStatus = s as TermStatus;
-                  // Map status to reps to keep them synchronized
                   let newReps = 0;
                   if (newStatus === TermStatus.WellKnown) {
-                    newReps = 4; // reps >= 4 corresponds to WellKnown status
+                    newReps = 4;
                   } else if (newStatus >= TermStatus.Learning1 && newStatus <= TermStatus.Learning4) {
-                    newReps = newStatus - 1; // Learning1 (1) -> reps 0, Learning4 (4) -> reps 3
+                    newReps = newStatus - 1;
                   } else if (newStatus === TermStatus.Ignored) {
-                    newReps = 0; // Ignored terms have 0 reps
+                    newReps = 0;
                   }
                   setFormData(prev => ({ ...prev, status: newStatus, reps: newReps }));
                 }}
                 className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all
                   ${formData.status === s 
-                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50' 
-                    : 'text-slate-400 hover:text-slate-600'}
+                    ? `${theme.cardBg} ${theme.accentText} shadow-sm ring-1 ${theme.border}` 
+                    : `${theme.mutedText} hover:${theme.text}`}
                 `}
               >
                 {s === 99 ? 'IGN' : s}
@@ -1423,16 +1307,16 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Parent / Root Form</label>
+            <label className={`text-[10px] font-black ${theme.mutedText} uppercase tracking-[0.2em]`}>Parent / Root Form</label>
           </div>
           <div className="relative">
-            <Hash size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+            <Hash size={14} className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.mutedText}`} />
             <input 
               type="text"
               placeholder="Dictionary form (e.g. bequemen)"
               value={formData.text}
               onChange={(e) => setFormData(prev => ({ ...prev, text: e.target.value }))}
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-5 py-3.5 text-sm focus:outline-none focus:border-indigo-500 font-bold text-slate-700"
+              className={`w-full border rounded-2xl pl-10 pr-5 py-3.5 text-sm focus:outline-none font-bold ${theme.inputBg} ${theme.border} ${theme.text}`}
             />
             {isRootMode && (
               <div className="absolute -top-2 right-2">
@@ -1462,7 +1346,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
         <div className="h-20" />
       </div>
 
-      <div className="p-6 bg-white border-t border-slate-100 z-10 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] space-y-3">
+      <div className={`p-6 ${theme.cardBg} border-t ${theme.border} z-10 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] space-y-3`}>
         {existingTerm && onDeleteTerm && (
           <button 
             type="button"

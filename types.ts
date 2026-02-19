@@ -72,6 +72,7 @@ export interface AppState {
 
 export interface GeminiSuggestion {
   translation: string;
+  chineseTranslation?: string;
   definition?: string; // Primary definition from dictionary
   grammar: string | object; // Specific contextual grammar analysis (can be string or object)
   explanation?: string; // Brief explanation of the word in context

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Text, Language, TextSourceType } from '../types';
 import { UserSettings } from '../services/dataModels';
-import { Plus, Book, Calendar, Search, Trash2, Languages, FileText, Upload, Loader2, FileType } from 'lucide-react';
+import { Plus, Book, Calendar, Search, Trash2, Languages, FileText, Upload, Loader2, FileType, BookOpen } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 import { parseEpubFile, extractPlainText } from '../services/epubParser';
 import { saveLargeTextContent } from '../services/fileStorage';
@@ -41,6 +41,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-slate-700',
           mutedText: 'text-slate-400',
           mutedBg: 'bg-slate-800/50',
+          inputBg: 'bg-slate-700',
           buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
           buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600'
         };
@@ -53,6 +54,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-indigo-800',
           mutedText: 'text-indigo-400',
           mutedBg: 'bg-indigo-900/50',
+          inputBg: 'bg-indigo-900',
           buttonPrimary: 'bg-indigo-700 text-white hover:bg-indigo-800',
           buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700'
         };
@@ -65,6 +67,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-gray-800',
           mutedText: 'text-gray-400',
           mutedBg: 'bg-gray-900/50',
+          inputBg: 'bg-gray-900',
           buttonPrimary: 'bg-white text-black hover:bg-gray-200',
           buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800'
         };
@@ -77,6 +80,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-amber-200',
           mutedText: 'text-amber-700',
           mutedBg: 'bg-amber-100/50',
+          inputBg: 'bg-amber-50',
           buttonPrimary: 'bg-amber-600 text-white hover:bg-amber-700',
           buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300'
         };
@@ -89,6 +93,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-stone-200',
           mutedText: 'text-stone-600',
           mutedBg: 'bg-stone-100/50',
+          inputBg: 'bg-stone-50',
           buttonPrimary: 'bg-stone-600 text-white hover:bg-stone-700',
           buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300'
         };
@@ -101,6 +106,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
           hoverBg: 'hover:bg-slate-100',
           mutedText: 'text-slate-500',
           mutedBg: 'bg-slate-100/50',
+          inputBg: 'bg-slate-50',
           buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
           buttonSecondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200'
         };
@@ -878,7 +884,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 lg:p-12">
+    <div className={`flex-1 overflow-y-auto p-8 lg:p-12 ${themeClasses.bg}`}>
       <div className="max-w-5xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-4">
           <div>
@@ -896,14 +902,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              className="bg-white text-slate-700 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 border border-slate-200 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+              className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 border transition-all shadow-sm disabled:opacity-50 ${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} ${themeClasses.hoverBg}`}
             >
               {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
               Upload Book
             </button>
             <button 
               onClick={() => setShowAdd(true)}
-              className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+              className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95 ${themeClasses.buttonPrimary}`}
             >
               <Plus size={20} strokeWidth={3} />
               Paste Text
@@ -912,45 +918,45 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
         </header>
 
         {showAdd && (
-          <div className="mb-12 bg-white rounded-3xl border border-slate-200 p-8 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-top-4 duration-300">
-             <h2 className="text-xl font-bold mb-6 text-slate-800">
+          <div className={`mb-12 ${themeClasses.cardBg} rounded-3xl border ${themeClasses.border} p-8 shadow-xl animate-in fade-in slide-in-from-top-4 duration-300`}>
+             <h2 className={`text-xl font-bold mb-6 ${themeClasses.text}`}>
                {pendingFile ? `New ${pendingFile.type.toUpperCase()}` : 'New Plain Text'}
              </h2>
-            <form onSubmit={handleAddSubmit} className="space-y-6">
+             <form onSubmit={handleAddSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Title</label>
+                  <label className={`text-[10px] font-bold ${themeClasses.mutedText} uppercase tracking-widest`}>Title</label>
                   <input 
                     type="text" 
                     value={newText.title}
                     onChange={(e) => setNewText(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500" 
+                    className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 ${themeClasses.inputBg || themeClasses.mutedBg} ${themeClasses.border} ${themeClasses.text}`}
                     placeholder="E.g., Article Title"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Language</label>
+                  <label className={`text-[10px] font-bold ${themeClasses.mutedText} uppercase tracking-widest`}>Language</label>
                   <select 
                     value={newText.languageId}
                     onChange={(e) => setNewText(prev => ({ ...prev, languageId: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                    className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 ${themeClasses.inputBg || themeClasses.mutedBg} ${themeClasses.border} ${themeClasses.text}`}
                   >
                     {languages.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Content</label>
+                <label className={`text-[10px] font-bold ${themeClasses.mutedText} uppercase tracking-widest`}>Content</label>
                 <textarea 
                   value={newText.content}
                   onChange={(e) => setNewText(prev => ({ ...prev, content: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 min-h-[200px] focus:outline-none focus:border-indigo-500"
+                  className={`w-full border rounded-xl px-4 py-4 min-h-[200px] focus:outline-none focus:border-indigo-500 ${themeClasses.inputBg || themeClasses.mutedBg} ${themeClasses.border} ${themeClasses.text}`}
                   placeholder="Paste contents here..."
                 />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-3 text-slate-500 font-bold hover:text-slate-700">Cancel</button>
-                <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-indigo-100">Save</button>
+                <button type="button" onClick={() => setShowAdd(false)} className={`px-6 py-3 font-bold hover:opacity-80 ${themeClasses.mutedText}`}>Cancel</button>
+                <button type="submit" className={`px-8 py-3 rounded-2xl font-bold shadow-lg ${themeClasses.buttonPrimary}`}>Save</button>
               </div>
             </form>
           </div>
@@ -958,70 +964,112 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
 
         {texts.length === 0 ? (
           <div className="text-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Book size={32} className="text-indigo-400" />
+            <div className={`w-20 h-20 ${themeClasses.mutedBg} rounded-full flex items-center justify-center mx-auto mb-6`}>
+              <Book size={32} className={`${themeClasses.mutedText}`} />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Your library is empty</h3>
-            <p className="text-slate-500 mt-2 max-w-sm mx-auto">Upload a PDF/EPUB or paste some text to get started.</p>
+            <h3 className={`text-xl font-bold ${themeClasses.text}`}>Your library is empty</h3>
+            <p className={`${themeClasses.mutedText} mt-2 max-w-sm mx-auto`}>Upload a PDF/EPUB or paste some text to get started.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {texts.map(text => (
-              <div 
-                key={text.id} 
-                onClick={() => onSelect(text.id)}
-                className="group relative bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer overflow-hidden flex flex-col h-full"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-3 rounded-2xl transition-colors ${
-                    text.sourceType === 'pdf' ? 'bg-rose-50 text-rose-600' : 
-                    text.sourceType === 'epub' ? 'bg-emerald-50 text-emerald-600' : 
-                    'bg-indigo-50 text-indigo-600'
+            {texts.map(text => {
+              const realProgress = readingProgressMap[text.id] ?? 0;
+              const isStarted = realProgress > 0;
+              const hasChapters = storedDocuments.find(d => d.id === text.id)?.totalChapters && storedDocuments.find(d => d.id === text.id)?.totalChapters > 1;
+              
+              return (
+                <div 
+                  key={text.id} 
+                  onClick={() => onSelect(text.id)}
+                  className={`group relative ${themeClasses.cardBg} border ${themeClasses.border} rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col h-full`}
+                >
+                  {/* Book Cover with Depth Effect */}
+                  <div className={`relative h-40 overflow-hidden ${
+                    text.sourceType === 'pdf' ? 'bg-gradient-to-br from-rose-400 via-rose-500 to-rose-600' : 
+                    text.sourceType === 'epub' ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600' : 
+                    'bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600'
                   }`}>
-                    {text.sourceType === 'pdf' ? <FileType size={20} /> : 
-                     text.sourceType === 'epub' ? <Book size={20} /> : 
-                     <FileText size={20} />}
+                    {/* Book spine shadow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-white/10" />
+                    
+                    {/* Cover content */}
+                    <div className="absolute inset-0 p-5 flex flex-col justify-between">
+                      {/* Top - Type badge */}
+                      <div className="flex justify-between items-start">
+                        <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                          {text.sourceType === 'pdf' ? <FileType size={14} className="text-white" /> : 
+                           text.sourceType === 'epub' ? <Book size={14} className="text-white" /> : 
+                           <FileText size={14} className="text-white" />}
+                        </div>
+                        {hasChapters && (
+                          <div className="bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full text-[10px] text-white font-bold">
+                            Chapters
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Bottom - Title */}
+                      <div className="text-white">
+                        <h3 className="text-lg font-bold leading-tight line-clamp-2 drop-shadow-sm">{text.title}</h3>
+                      </div>
+                    </div>
+                    
+                    {/* Book depth/shadow overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/30 to-transparent" />
                   </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(text.id); }}
-                    className="p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-                
-                <h3 className="text-lg font-bold text-slate-900 mb-2 line-clamp-2">{text.title}</h3>
-                
-                <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-auto pb-4">
-                  <span className="flex items-center gap-1"><Languages size={12} /> {languages.find(l => l.id === text.languageId)?.name}</span>
-                  <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(text.createdAt).toLocaleDateString()}</span>
-                </div>
+                  
+                  {/* Card Content */}
+                  <div className="p-5 flex-1 flex flex-col">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className={`p-2 rounded-xl ${
+                        text.sourceType === 'pdf' ? 'bg-rose-50 text-rose-600' : 
+                        text.sourceType === 'epub' ? 'bg-emerald-50 text-emerald-600' : 
+                        'bg-indigo-50 text-indigo-600'
+                      }`}>
+                        {text.sourceType === 'pdf' ? <FileType size={16} /> : 
+                         text.sourceType === 'epub' ? <Book size={16} /> : 
+                         <FileText size={16} />}
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(text.id); }}
+                        className="p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-auto pb-3">
+                      <span className="flex items-center gap-1"><Languages size={12} /> {languages.find(l => l.id === text.languageId)?.name}</span>
+                      <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(text.createdAt).toLocaleDateString()}</span>
+                    </div>
 
-                {/* Progress Bar - 使用真实阅读进度 */}
-                {(() => {
-                  const realProgress = readingProgressMap[text.id] ?? 0;
-                  const isStarted = realProgress > 0;
-                  return (
-                    <>
-                      <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mt-2">
+                    {/* Progress Bar */}
+                    <div className="mt-auto">
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div 
                           className={`h-full transition-all duration-500 ${isStarted ? 'bg-indigo-500' : 'bg-slate-300'}`}
                           style={{ width: `${realProgress * 100}%` }}
                         />
                       </div>
-                      <div className="flex justify-between mt-1 text-[9px] font-bold uppercase">
-                        <span className={isStarted ? 'text-indigo-500' : 'text-slate-400'}>
-                          {isStarted ? 'Reading' : 'Not started'}
-                        </span>
-                        <span className={isStarted ? 'text-indigo-600' : 'text-slate-400'}>
-                          {Math.round(realProgress * 100)}%
-                        </span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            ))}
+                      
+                      {/* Progress */}
+                      {isStarted ? (
+                        <div className="mt-3 flex items-center justify-between">
+                          <span className="text-xs font-bold text-indigo-500">
+                            {Math.round(realProgress * 100)}%
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between mt-1 text-[9px] font-bold uppercase">
+                          <span className="text-slate-400">Not started</span>
+                          <span className="text-slate-400">0%</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
        </div>

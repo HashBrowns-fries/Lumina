@@ -26,6 +26,56 @@ class SQLiteDictionaryService {
     this.initializeDatabasePaths();
   }
 
+  // Convert SLP1 to Devanagari using vidyut API
+  async slp1ToDevanagari(text) {
+    if (!text || text.length === 0) return text;
+    
+    // Don't convert if already Devanagari
+    if (/[\u0900-\u097F]/.test(text)) return text;
+    
+    try {
+      const response = await fetch('http://localhost:3006/api/sanskrit/transliterate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          fromScheme: 'slp1',
+          toScheme: 'devanagari'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.transliterated) {
+          return data.transliterated;
+        }
+      }
+    } catch (e) {
+      console.warn('[SQLiteDictionary] transliterate API failed, using fallback:', e.message);
+    }
+    
+    // Fallback: simple character-by-character conversion
+    const simpleMap = {
+      'a': 'अ', 'A': 'आ', 'i': 'इ', 'I': 'ई', 'u': 'उ', 'U': 'ऊ',
+      'r': 'ऋ', 'R': 'ॠ',
+      'e': 'ए', 'o': 'ओ',
+      'M': 'ं', 'H': 'ः',
+      'k': 'क', 'K': 'ख', 'g': 'ग', 'G': 'घ', 'N': 'ङ',
+      'c': 'च', 'C': 'छ', 'j': 'ज', 'J': 'झ', 'Y': 'ञ',
+      'w': 'ट', 'W': 'ठ', 'q': 'ड', 'Q': 'ढ', 'R': 'ण',
+      't': 'त', 'T': 'थ', 'd': 'द', 'D': 'ध', 'n': 'न',
+      'p': 'प', 'P': 'फ', 'b': 'ब', 'B': 'भ', 'm': 'म',
+      'y': 'य', 'l': 'ल', 'v': 'व',
+      'S': 'श', 'z': 'ष', 's': 'स', 'h': 'ह'
+    };
+    
+    let result = '';
+    for (const char of text) {
+      result += simpleMap[char] || char;
+    }
+    return result;
+  }
+
   initializeDatabasePaths() {
     // Calculate project root correctly for Node.js CJS environment
     const __filename = fileURLToPath(import.meta.url);
@@ -368,17 +418,43 @@ class SQLiteDictionaryService {
     const normalizedWord = this.normalizeWord(word);
     let matches = [];
 
+    // For Sanskrit (sa), also try Devanagari lookup
+    let devanagariWord = word;
+    let devanagariNormalized = normalizedWord;
+    if (languageCode === 'sa') {
+      devanagariWord = await this.slp1ToDevanagari(word);
+      devanagariNormalized = await this.slp1ToDevanagari(normalizedWord);
+      console.log(`[SQLiteDictionary] Converted "${word}" to Devanagari: "${devanagariWord}"`);
+    }
+
     try {
       // First find all form matches (inflection forms)
       console.log(`[SQLiteDictionary] Checking forms table for "${word}" (normalized: "${normalizedWord}")`);
-      const formMatches = await db.all(`
+      
+      // For Sanskrit, also search using Devanagari form
+      let formQuery = `
         SELECT DISTINCT d.*, f.tags, f.form as inflection_form 
         FROM dictionary d
         JOIN forms f ON d.id = f.dictionary_id
         WHERE (f.normalized_form = ? OR f.form = ?)
-        AND f.form NOT LIKE '%''%'  -- Exclude forms with apostrophes (like "Haus'")
+        AND f.form NOT LIKE '%''%'
         ORDER BY d.pos, d.word
-      `, [normalizedWord, word]);
+      `;
+      let formParams = [normalizedWord, word];
+      
+      if (languageCode === 'sa' && devanagariWord !== word) {
+        formQuery = `
+          SELECT DISTINCT d.*, f.tags, f.form as inflection_form 
+          FROM dictionary d
+          JOIN forms f ON d.id = f.dictionary_id
+          WHERE (f.normalized_form = ? OR f.form = ? OR f.normalized_form = ? OR f.form = ?)
+          AND f.form NOT LIKE '%''%'
+          ORDER BY d.pos, d.word
+        `;
+        formParams = [normalizedWord, word, devanagariNormalized, devanagariWord];
+      }
+      
+      const formMatches = await db.all(formQuery, formParams);
 
       if (formMatches.length > 0) {
         console.log(`[SQLiteDictionary] Found ${formMatches.length} form matches`);
@@ -419,11 +495,23 @@ class SQLiteDictionaryService {
       }
 
       // Then find all direct dictionary matches
-      const dictEntries = await db.all(`
+      let dictQuery = `
         SELECT * FROM dictionary 
         WHERE normalized_word = ? OR word = ?
         ORDER BY pos, word
-      `, [normalizedWord, word]);
+      `;
+      let dictParams = [normalizedWord, word];
+      
+      if (languageCode === 'sa' && devanagariNormalized !== normalizedWord) {
+        dictQuery = `
+          SELECT * FROM dictionary 
+          WHERE normalized_word = ? OR word = ? OR normalized_word = ? OR word = ?
+          ORDER BY pos, word
+        `;
+        dictParams = [normalizedWord, word, devanagariNormalized, devanagariWord];
+      }
+      
+      const dictEntries = await db.all(dictQuery, dictParams);
 
       if (dictEntries.length > 0) {
         console.log(`[SQLiteDictionary] Found ${dictEntries.length} dictionary matches`);
@@ -630,6 +718,7 @@ class SQLiteDictionaryService {
       rootEntry = {
         word: entry.word,
         language: language.name,
+        source: 'local_db',
         partOfSpeech: entry.pos || undefined,
         definitions: definitions.length > 0 ? definitions : [`${entry.pos || 'word'}: ${entry.word}`],
         translations: [], // SQLite dictionary doesn't contain translations
@@ -648,6 +737,7 @@ class SQLiteDictionaryService {
     return {
       word: displayWord,
       language: language.name,
+      source: 'local_db',
       partOfSpeech: entry.pos || undefined,
       definitions: definitions.length > 0 ? definitions : [`${entry.pos || 'word'}: ${displayWord}`],
       translations: [], // SQLite dictionary doesn't contain translations

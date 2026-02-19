@@ -554,6 +554,400 @@ app.get('/api/dictionary/check-python', async (req, res) => {
   }
 });
 
+// 梵语Sandhi拆分端点
+app.post('/api/sanskrit/split', async (req, res) => {
+  try {
+    const { word, mode } = req.body;
+    
+    if (!word) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing word parameter'
+      });
+    }
+    
+    console.log(`[Sanskrit] Splitting sandhi: "${word}" (mode: ${mode || 'sandhi'})`);
+    
+    // 构建命令参数
+    const cmdArgs = [
+      'run',
+      'python',
+      'scripts/sanskrit_cli.py',
+      '--action',
+      'split',
+      '--word',
+      word,
+      '--json'
+    ];
+    
+    // 添加mode参数（默认为sandhi）
+    if (mode) {
+      cmdArgs.push('--mode', mode);
+    }
+    
+    // 调用Python脚本
+    const pythonProcess = spawn('uv', cmdArgs, {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (parseError) {
+          console.error('[Sanskrit] Failed to parse Python output:', parseError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to parse Python output',
+            stdout: stdout,
+            stderr: stderr
+          });
+        }
+      } else {
+        console.error(`[Sanskrit] Python process exited with code ${code}: ${stderr}`);
+        res.status(500).json({
+          success: false,
+          error: 'Python processing failed',
+          exitCode: code,
+          stderr: stderr
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Sanskrit] Failed to start Python process:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start Python process',
+        details: error.message
+      });
+    });
+    
+  } catch (error) {
+    console.error('[Sanskrit] Error in sandhi split endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 梵语转写端点
+app.post('/api/sanskrit/transliterate', async (req, res) => {
+  try {
+    const { text, fromScheme = 'devanagari', toScheme = 'iast' } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing text parameter'
+      });
+    }
+    
+    console.log(`[Sanskrit] Transliterating: "${text}" from ${fromScheme} to ${toScheme}`);
+    
+    // 调用Python脚本
+    const pythonProcess = spawn('uv', [
+      'run',
+      'python',
+      'scripts/sanskrit_cli.py',
+      '--action',
+      'transliterate',
+      '--text',
+      text,
+      '--from-scheme',
+      fromScheme,
+      '--to-scheme',
+      toScheme,
+      '--json'
+    ], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (parseError) {
+          console.error('[Sanskrit] Failed to parse Python output:', parseError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to parse Python output',
+            stdout: stdout,
+            stderr: stderr
+          });
+        }
+      } else {
+        console.error(`[Sanskrit] Python process exited with code ${code}: ${stderr}`);
+        res.status(500).json({
+          success: false,
+          error: 'Python processing failed',
+          exitCode: code,
+          stderr: stderr
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Sanskrit] Failed to start Python process:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start Python process',
+        details: error.message
+      });
+    });
+    
+  } catch (error) {
+    console.error('[Sanskrit] Error in transliterate endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 梵语完整处理管道端点
+app.post('/api/process', async (req, res) => {
+  try {
+    const { text, target_scheme = 'slp1' } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing text parameter'
+      });
+    }
+    
+    console.log(`[Sanskrit] Processing pipeline: "${text}" -> ${target_scheme}`);
+    
+    // 步骤1: 转写 (使用现有的 /api/sanskrit/transliterate)
+    const translitResponse = await fetch(`http://localhost:3006/api/sanskrit/transliterate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text,
+        fromScheme: 'devanagari',
+        toScheme: target_scheme
+      })
+    });
+    
+    let normalizedText = text;
+    if (translitResponse.ok) {
+      const translitData = await translitResponse.json();
+      if (translitData.success && translitData.transliterated) {
+        normalizedText = translitData.transliterated;
+      }
+    }
+    
+    // 步骤2: 形态素分割 (morpheme模式)
+    const splitResponse = await fetch(`http://localhost:3006/api/sanskrit/split`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word: text,
+        mode: 'morpheme'
+      })
+    });
+    
+    let segments = [];
+    if (splitResponse.ok) {
+      const splitData = await splitResponse.json();
+      if (splitData.success && splitData.result && splitData.result.parts) {
+        segments = splitData.result.parts.map((part, index) => ({
+          text: part,
+          lemma: part,
+          info: `Part ${index + 1}`
+        }));
+      }
+    }
+    
+    // 如果分割失败，使用整个词
+    if (segments.length === 0) {
+      segments = [{ text: text, lemma: text, info: 'Original' }];
+    }
+    
+    // 步骤3: 词典查询每个部分 (需要先将devanagari转为slp1)
+    const lookupPromises = segments.map(async (segment) => {
+      try {
+        // 将segment.text从devanagari转写为slp1用于词典查询
+        let lookupWord = segment.text;
+        const translitResponse = await fetch(`http://localhost:3006/api/sanskrit/transliterate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: segment.text,
+            fromScheme: 'devanagari',
+            toScheme: 'slp1'
+          })
+        });
+        if (translitResponse.ok) {
+          const translitData = await translitResponse.json();
+          if (translitData.success && translitData.transliterated) {
+            lookupWord = translitData.transliterated;
+          }
+        }
+        
+        const dictResponse = await fetch(`http://localhost:3006/api/dictionary/query/sa/${encodeURIComponent(lookupWord)}`);
+        const dictData = await dictResponse.json();
+        
+        return {
+          segment: segment,
+          lookup: {
+            success: dictData.success,
+            word: segment.text,
+            lookup_word: lookupWord,
+            entries: dictData.entries || [],
+            entry_count: dictData.entries?.length || 0,
+            processing_time_ms: 0
+          }
+        };
+      } catch (e) {
+        return {
+          segment: segment,
+          lookup: {
+            success: false,
+            word: segment.text,
+            lookup_word: segment.text,
+            entries: [],
+            entry_count: 0,
+            processing_time_ms: 0,
+            error: String(e)
+          }
+        };
+      }
+    });
+    
+    const lookupResults = await Promise.all(lookupPromises);
+    
+    // 返回完整结果
+    res.json({
+      success: true,
+      pipeline: {
+        input: {
+          text: text,
+          scheme: 'devanagari'
+        },
+        normalization: {
+          target_scheme: target_scheme,
+          normalized_text: normalizedText
+        },
+        segmentation: {
+          success: true,
+          original: text,
+          segments: segments,
+          segment_count: segments.length,
+          processing_time_ms: 0
+        },
+        lookup: lookupResults
+      },
+      processing_time_ms: 0
+    });
+    
+  } catch (error) {
+    console.error('[Sanskrit] Error in process pipeline:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// 梵语服务健康检查
+app.get('/api/sanskrit/health', async (req, res) => {
+  try {
+    // 调用Python脚本
+    const pythonProcess = spawn('uv', [
+      'run',
+      'python',
+      'scripts/sanskrit_cli.py',
+      '--action',
+      'health',
+      '--json'
+    ], {
+      cwd: path.join(__dirname, '..'),
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (parseError) {
+          console.error('[Sanskrit] Failed to parse Python health check:', parseError);
+          res.status(500).json({
+            success: false,
+            error: 'Failed to parse Python output',
+            stdout: stdout,
+            stderr: stderr
+          });
+        }
+      } else {
+        console.error(`[Sanskrit] Python health check exited with code ${code}: ${stderr}`);
+        res.status(500).json({
+          success: false,
+          error: 'Python health check failed',
+          exitCode: code,
+          stderr: stderr
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Sanskrit] Failed to start Python process for health check:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start Python process',
+        details: error.message
+      });
+    });
+    
+  } catch (error) {
+    console.error('[Sanskrit] Error in health check endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 启动服务器
 app.listen(port, () => {
   console.log(`\n=== Luminous Lute Dictionary API ===`);
@@ -569,5 +963,8 @@ app.listen(port, () => {
   console.log(`  POST /api/dictionary/upload             - Upload dictionary file`);
   console.log(`  DELETE /api/dictionary/:lang            - Remove dictionary from registry`);
   console.log(`  DELETE /api/dictionary/:lang/file       - Delete dictionary file`);
+  console.log(`  POST /api/sanskrit/split                - Split Sanskrit sandhi compound`);
+  console.log(`  POST /api/sanskrit/transliterate        - Transliterate Sanskrit text`);
+  console.log(`  GET  /api/sanskrit/health               - Sanskrit service health check`);
   console.log(`\nReady to serve!\n`);
 });

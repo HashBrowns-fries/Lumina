@@ -473,8 +473,13 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   };
 
   const getTermStyles = (token: string, idx: number) => {
-    const key = `${language.id}:${token.toLowerCase()}`;
-    const term = terms[key];
+    const tokenLower = token.toLowerCase();
+    // Find term by languageId and text match
+    const termKey = Object.keys(terms).find(key => {
+      const term = terms[key];
+      return term && term.languageId === language.id && term.text.toLowerCase() === tokenLower;
+    });
+    const term = termKey ? terms[termKey] : null;
     const isSelected = selection?.indices.includes(idx);
     
     let baseStyles = "cursor-pointer transition-all duration-200 px-0.5 rounded-md mx-[1px] ";
@@ -1152,16 +1157,16 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
            'border-slate-200 bg-slate-50 shadow-slate-200'
          }`}
                style={{ width: `${sidebarContentWidth}px` }}>
-         {selection ? (
-            <TermSidebar 
-              word={selectedText}
-              sentence={selection.sentence}
-              language={language}
-              existingTerm={terms[`${language.id}:${selectedText.toLowerCase()}`]}
-              onSave={onUpdateTerm}
-              onDeleteTerm={onDeleteTerm}
-              allTerms={terms}
-              onClose={() => { setSelection(null); setIsLinkingMode(false); }}
+          {selection ? (
+             <TermSidebar 
+               word={selectedText}
+               sentence={selection.sentence}
+               language={language}
+               existingTerm={Object.values(terms).find(t => t.languageId === language.id && t.text.toLowerCase() === selectedText.toLowerCase()) || undefined}
+               onSave={onUpdateTerm}
+               onDeleteTerm={onDeleteTerm}
+               allTerms={terms}
+               onClose={() => { setSelection(null); setIsLinkingMode(false); }}
               aiConfig={aiConfig}
               isLinkingMode={isLinkingMode}
               onToggleLinkMode={() => setIsLinkingMode(!isLinkingMode)}

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "cd server && npm run dev",
+    "dev:sanskrit-api": "cd scripts && uv run enhanced_sanskrit_api.py",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\" \"npm run dev:sanskrit-api\"",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",

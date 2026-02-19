@@ -42,6 +42,9 @@ export class SQLiteDictionaryService {
   private initializeDatabasePaths(): void {
     // 映射语言代码到SQLite数据库文件路径
     this.dbPaths.set('de', 'dict/German/german_dict.db');
+    this.dbPaths.set('sa', 'dict/Sanskrit/sa_dict.db');
+    this.dbPaths.set('fr', 'dict/French/fr_dict.db');
+    this.dbPaths.set('la', 'dict/Latin/la_dict.db');
     // 可以添加更多语言
   }
 
@@ -147,9 +150,14 @@ export class SQLiteDictionaryService {
     }
   }
 
-  private normalizeWord(word: string): string {
+  private normalizeWord(word: string, languageCode?: string): string {
     // 与Python转换脚本相同的标准化逻辑
     if (!word) return '';
+    
+    // 梵语特殊处理
+    if (languageCode === 'sa') {
+      return this.normalizeSanskritWord(word);
+    }
     
     let normalized = word.toLowerCase();
     
@@ -173,10 +181,35 @@ export class SQLiteDictionaryService {
     
     return normalized;
   }
+  
+  private normalizeSanskritWord(word: string): string {
+    if (!word) return '';
+    
+    // 梵语规范化处理
+    let normalized = word;
+    
+    // 1. 移除梵语中的特殊符号和变音符号（anusvara, visarga等）
+    // 这些通常在词典中会被标准化
+    normalized = normalized.replace(/[\u0900-\u0903\u093A-\u094F]/g, '');
+    
+    // 2. 标准化复合字符（这里简化处理，实际需要更复杂的逻辑）
+    normalized = normalized.normalize('NFC');
+    
+    // 3. 转换为小写（Devanagari字母）
+    // 注意：Devanagari没有大小写区分，但这里保持一致性
+    
+    // 4. 移除空白字符
+    normalized = normalized.trim();
+    
+    // 5. 移除尾部的标点符号
+    normalized = normalized.replace(/[।॥.,;:!?'"()\[\]{}]/g, '');
+    
+    return normalized;
+  }
 
   private async findExactMatch(word: string, languageCode: string): Promise<{ entry: DictionaryEntry, isInflection: boolean } | null> {
     const db = await this.getConnection(languageCode);
-    const normalizedWord = this.normalizeWord(word);
+    const normalizedWord = this.normalizeWord(word, languageCode);
     
     try {
       // 首先尝试精确匹配单词
@@ -381,7 +414,7 @@ export class SQLiteDictionaryService {
   ): Promise<Array<{ word: string; pos: string | null }>> {
     try {
       const db = await this.getConnection(languageCode);
-      const normalizedQuery = this.normalizeWord(query);
+      const normalizedQuery = this.normalizeWord(query, languageCode);
       
       const results = await db.all(`
         SELECT word, pos FROM dictionary 
