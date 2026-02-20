@@ -168,6 +168,12 @@ app.get('/api/dictionary/query/:languageCode/:word', async (req, res) => {
     const { languageCode, word } = req.params;
     console.log(`[API] Query: "${word}" (${languageCode})`);
 
+    // Skip SQLiteDictionary for Sanskrit - use Dharma Mitra instead
+    if (languageCode === 'sa') {
+      console.log(`[API] Skipping SQLiteDictionary for Sanskrit, using Dharma Mitra`);
+      return res.json({ success: true, entries: [], source: 'sanskrit-only' });
+    }
+
     const result = await dictionaryService.queryDictionary(word, { id: languageCode, name: languageMap[languageCode] || languageCode });
 
     // 记录查询来源
@@ -195,6 +201,12 @@ app.post('/api/dictionary/batch-query', async (req, res) => {
 
     if (!languageCode || !Array.isArray(words)) {
       return res.status(400).json({ error: 'Invalid request body' });
+    }
+
+    // Skip SQLiteDictionary for Sanskrit - use Dharma Mitra instead
+    if (languageCode === 'sa') {
+      console.log(`[API] Skipping SQLiteDictionary for Sanskrit batch query`);
+      return res.json({ success: true, results: {}, source: 'sanskrit-only' });
     }
 
     console.log(`[API] Batch query for ${words.length} words (${languageCode})`);
