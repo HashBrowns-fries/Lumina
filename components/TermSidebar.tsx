@@ -1452,7 +1452,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                     : `${theme.mutedText} hover:${theme.text}`}
                 `}
               >
-                {s === 99 ? 'IGN' : s}
+                {s === 99 ? 'IGN' : s === 0 ? 'NEW' : s}
               </button>
             ))}
           </div>
