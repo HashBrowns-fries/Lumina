@@ -35,7 +35,7 @@ class SanskritProcessor:
         try:
             from vidyut.lipi import transliterate, Scheme
 
-            # 方案名称映射
+            # 方案名称映射 - only schemes that exist in vidyut
             scheme_map = {
                 "devanagari": Scheme.Devanagari,
                 "iast": Scheme.Iast,
@@ -46,7 +46,6 @@ class SanskritProcessor:
                 "bengali": Scheme.Bengali,
                 "gurmukhi": Scheme.Gurmukhi,
                 "gujarati": Scheme.Gujarati,
-                "oriya": Scheme.Oriya,
                 "tamil": Scheme.Tamil,
                 "telugu": Scheme.Telugu,
                 "kannada": Scheme.Kannada,
