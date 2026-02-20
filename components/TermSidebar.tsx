@@ -848,22 +848,12 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                         <span className="bg-white px-3 py-1.5 rounded-lg border border-amber-200 font-mono text-sm font-bold text-amber-800">
                           {seg.unsandhied || seg.original}
                         </span>
-                        {seg.lemma && seg.lemma !== seg.unsandhied && (
-                          <span className="text-[10px] text-amber-500 mt-1">
-                            from: {seg.lemma}
-                          </span>
-                        )}
                       </div>
                       {idx < sanskritAnalysisResult.segments.length - 1 && (
                         <span className="text-amber-400 font-bold text-xl">+</span>
                       )}
                     </React.Fragment>
                   ))}
-                </div>
-                
-                {/* Original word */}
-                <div className="text-center text-xs text-amber-600">
-                  Original: <span className="font-bold">{word}</span>
                 </div>
               </div>
             )}
