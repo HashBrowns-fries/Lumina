@@ -578,6 +578,18 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         let errorMessage = 'Failed to analyze term';
         if (error instanceof Error) {
           errorMessage = error.message;
+          
+          if (errorMessage.includes('API key') || errorMessage.includes('key is required')) {
+            errorMessage = 'AI API key not configured. Please go to Settings > AI Configuration and add your API key.';
+          } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+          } else if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+            errorMessage = 'AI service not found. Please check your API key and settings.';
+          } else if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+            errorMessage = 'Invalid API key. Please check your AI configuration in Settings.';
+          } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+            errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+          }
         } else if (typeof error === 'object' && error !== null) {
           if ('message' in error && typeof error.message === 'string') {
             errorMessage = error.message;

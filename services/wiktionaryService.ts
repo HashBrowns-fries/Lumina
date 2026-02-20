@@ -1,6 +1,7 @@
 import { Language } from '../types';
 import { sqliteDictionaryService } from './sqliteDictionaryService.ts';
 import { browserDictionaryService } from './browserDictionaryService.ts';
+import { getDictionaryApiUrl } from './apiConfig';
 
 
 
@@ -42,25 +43,7 @@ const getMockDictionaryData = (word: string, language: Language): any => {
         return notFoundResponse;
 };
 
-// 后端API配置 - 可以通过环境变量覆盖
-const BACKEND_API_URL = (() => {
-  try {
-    // 尝试从全局变量或环境变量获取
-    if (typeof window !== 'undefined' && (window as any).DICTIONARY_API_URL) {
-      return (window as any).DICTIONARY_API_URL;
-    }
-    
-    // Node.js环境
-    if (typeof process !== 'undefined' && process.env?.DICTIONARY_API_URL) {
-      return process.env.DICTIONARY_API_URL;
-    }
-  } catch (error) {
-    console.debug('[WiktionaryService] Failed to read API URL from environment:', error);
-  }
-  
-  // 默认值
-  return 'http://localhost:3006';
-})();
+const BACKEND_API_URL = getDictionaryApiUrl();
 
 export interface WiktionaryEntry {
   word: string;

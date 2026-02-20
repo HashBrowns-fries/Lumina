@@ -1,4 +1,5 @@
 import { Language } from '../types';
+import { getSanskritApiUrl } from './apiConfig';
 
 /**
  * 支持的转写方案
@@ -72,7 +73,7 @@ export interface HealthCheckResult {
 export class SanskritService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://localhost:3008') {
+  constructor(baseUrl: string = getSanskritApiUrl()) {
     this.baseUrl = baseUrl;
   }
 

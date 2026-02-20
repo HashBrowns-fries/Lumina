@@ -33,7 +33,11 @@
       "icons/icon.png",
       "icons/128x128.png",
       "icons/128x128@2x.png"
-    ]
+    ],
+    "resources": {
+      "../server": "server",
+      "../scripts": "scripts"
+    }
   },
   "plugins": {
     "updater": {

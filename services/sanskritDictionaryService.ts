@@ -1,5 +1,6 @@
 import { Language } from '../types';
 import { WiktionaryResponse, WiktionaryEntry, queryWiktionary } from './wiktionaryService.ts';
+import { getDictionaryApiUrl } from './apiConfig';
 
 export interface SplitPartResult {
     originalPart: string;
@@ -88,8 +89,7 @@ export class SanskritDictionaryService {
      */
     private async splitSandhiUsingAPI(word: string, mode: 'sandhi' | 'morpheme' = 'morpheme'): Promise<string[]> {
         try {
-            // 使用与wiktionaryService相同的后端URL
-            const BACKEND_API_URL = 'http://localhost:3006';
+            const BACKEND_API_URL = getDictionaryApiUrl();
             
             console.debug('[SanskritDictionary] Calling sandhi split API for:', word, 'mode:', mode);
             

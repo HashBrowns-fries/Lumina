@@ -13,7 +13,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
-    "build:tauri": "tauri build"
+    "build:tauri": "tauri build",
+    "start:server": "cd server && node index.js",
+    "start:sanskrit": "cd scripts && python enhanced_sanskrit_api.py"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
