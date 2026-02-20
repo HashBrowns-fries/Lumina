@@ -457,7 +457,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     
     setIsLoadingTransliteration(true);
     try {
-      const schemes = ['iast', 'slp1', 'harvardkyoto', 'itrans'];
+      const schemes = ['iast', 'slp1', 'harvardkyoto', 'tibetan'];
       const results: Record<string, string> = {};
       
       for (const scheme of schemes) {
@@ -812,9 +812,9 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                         <span className="text-purple-400 font-bold">HK:</span> <span className="font-mono text-purple-800">{transliterations.harvardkyoto}</span>
                       </div>
                     )}
-                    {transliterations.itrans && (
+                    {transliterations.tibetan && (
                       <div className="bg-white/50 rounded px-2 py-1 col-span-2">
-                        <span className="text-purple-400 font-bold">ITRANS:</span> <span className="font-mono text-purple-800">{transliterations.itrans}</span>
+                        <span className="text-purple-400 font-bold">Tibetan:</span> <span className="font-mono text-purple-800">{transliterations.tibetan}</span>
                       </div>
                     )}
                   </div>
