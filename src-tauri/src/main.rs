@@ -96,7 +96,7 @@ fn main() {
             let handle = app.handle().clone();
 
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(3));
+                std::thread::sleep(std::time::Duration::from_secs(1));
 
                 let app_dir = match handle.path().app_data_dir() {
                     Ok(dir) => dir,

@@ -145,7 +145,15 @@ async function queryBackendDictionary(word: string, language: Language): Promise
     const url = `${BACKEND_API_URL}/api/dictionary/query/${language.id}/${encodeURIComponent(word)}`;
     console.debug('[WiktionaryService] Querying backend API:', url);
     
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const response = await fetch(url, { 
+      signal: controller.signal,
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       console.warn(`[WiktionaryService] Backend API error: ${response.status}`);
@@ -253,7 +261,12 @@ export const queryWiktionary = async (
     } else {
       // 浏览器环境：首先尝试后端API，失败时使用browserDictionaryService
       try {
-        const dictionaryResult = await queryBackendDictionary(word, language);
+        const dictionaryResult = await Promise.race([
+          queryBackendDictionary(word, language),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Backend dictionary timeout')), 5000)
+          )
+        ]);
         
         if (dictionaryResult.success && dictionaryResult.entries.length > 0) {
           console.debug('[WiktionaryService] Found in backend API');
