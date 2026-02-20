@@ -457,7 +457,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     
     setIsLoadingTransliteration(true);
     try {
-      const schemes = ['iast', 'slp1', 'harvardkyoto', 'tibetan'];
+      const schemes = ['iast', 'slp1', 'tibetan'];
       const results: Record<string, string> = {};
       
       for (const scheme of schemes) {
@@ -529,6 +529,10 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
       
       setSanskritAnalysisResult(result);
       setShowSanskritAnalysis(true);
+      // Auto-load transliterations
+      if (Object.keys(transliterations).length === 0) {
+        loadTransliterations(text);
+      }
       console.debug('[TermSidebar] Sanskrit analysis result:', result);
     } catch (error) {
       console.error('[TermSidebar] Sanskrit processing error:', error);
@@ -805,11 +809,6 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                     {transliterations.slp1 && (
                       <div className="bg-white/50 rounded px-2 py-1">
                         <span className="text-purple-400 font-bold">SLP1:</span> <span className="font-mono text-purple-800">{transliterations.slp1}</span>
-                      </div>
-                    )}
-                    {transliterations.harvardkyoto && (
-                      <div className="bg-white/50 rounded px-2 py-1">
-                        <span className="text-purple-400 font-bold">HK:</span> <span className="font-mono text-purple-800">{transliterations.harvardkyoto}</span>
                       </div>
                     )}
                     {transliterations.tibetan && (
