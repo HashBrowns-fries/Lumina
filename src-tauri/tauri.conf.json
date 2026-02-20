@@ -36,11 +36,7 @@
     ],
     "resources": [
       "../server",
-      "../scripts/enhanced_sanskrit_api.py",
-      "../scripts/sandhi_api.py",
-      "../scripts/sandhi_service.py",
-      "../scripts/local_dictionary.py",
-      "../scripts/manage_dictionaries.py"
+      "../scripts"
     ]
   },
   "plugins": {
