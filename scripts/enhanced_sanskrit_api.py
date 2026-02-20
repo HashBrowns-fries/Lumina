@@ -43,6 +43,7 @@ class SanskritProcessor:
                 "itrans": Scheme.Itrans,
                 "velthuis": Scheme.Velthuis,
                 "wx": Scheme.Wx,
+                "harvardkyoto": Scheme.HarvardKyoto,
                 "bengali": Scheme.Bengali,
                 "gurmukhi": Scheme.Gurmukhi,
                 "gujarati": Scheme.Gujarati,
