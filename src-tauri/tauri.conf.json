@@ -34,10 +34,14 @@
       "icons/128x128.png",
       "icons/128x128@2x.png"
     ],
-    "resources": {
-      "../server": "server",
-      "../scripts": "scripts"
-    }
+    "resources": [
+      "../server",
+      "../scripts/enhanced_sanskrit_api.py",
+      "../scripts/sandhi_api.py",
+      "../scripts/sandhi_service.py",
+      "../scripts/local_dictionary.py",
+      "../scripts/manage_dictionaries.py"
+    ]
   },
   "plugins": {
     "updater": {

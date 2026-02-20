@@ -8,7 +8,6 @@ use std::process::{Command, Stdio};
 use tauri::Manager;
 
 fn get_log_path() -> PathBuf {
-    // 日志放在 exe 同级目录的 logs 文件夹
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let log_dir = exe_dir.join("logs");
@@ -21,13 +20,25 @@ fn get_log_path() -> PathBuf {
     PathBuf::from("lumina.log")
 }
 
+fn get_service_log_path() -> PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let log_dir = exe_dir.join("logs");
+            if !log_dir.exists() {
+                let _ = fs::create_dir_all(&log_dir);
+            }
+            return log_dir.join("services.log");
+        }
+    }
+    PathBuf::from("services.log")
+}
+
 fn write_log(msg: &str) {
     let log_path = get_log_path();
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
         let timestamp = chrono_lite_timestamp();
         let _ = writeln!(file, "[{}] {}", timestamp, msg);
     }
-    // 同时打印到 stdout（开发时可见）
     println!("{}", msg);
 }
 
@@ -44,7 +55,6 @@ fn chrono_lite_timestamp() -> String {
 }
 
 fn find_base_path() -> PathBuf {
-    // 方式1: exe 同级目录（MSI 安装的实际位置）- 优先！
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let server_path = exe_dir.join("server").join("index.js");
@@ -80,7 +90,6 @@ fn start_backend_services() -> Result<String, String> {
     write_log(&format!("Node.js 脚本: {:?}", server_script));
     write_log(&format!("Python 脚本: {:?}", python_script));
 
-    // 列出目录内容
     if base_path.exists() {
         write_log("基础路径目录内容:");
         if let Ok(entries) = fs::read_dir(&base_path) {
@@ -112,7 +121,6 @@ fn start_backend_services() -> Result<String, String> {
         write_log("✗ 基础路径不存在!");
     }
 
-    // 检查 node 命令
     match Command::new("node").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
@@ -130,43 +138,68 @@ fn start_backend_services() -> Result<String, String> {
         }
     }
 
-    // 启动 Node.js 服务
+    let node_log = get_service_log_path();
     if server_script.exists() {
-        match Command::new("node")
+        let mut child = Command::new("node")
             .arg(&server_script)
             .current_dir(base_path.join("server"))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-        {
-            Ok(child) => {
-                write_log(&format!("✓ Node.js 服务已启动 (PID: {})", child.id()));
+            .expect("Failed to start Node.js");
+
+        write_log(&format!("✓ Node.js 服务已启动 (PID: {})", child.id()));
+        write_log(&format!("  服务日志: {:?}", node_log));
+
+        std::thread::spawn(move || {
+            if let Ok(output) = child.wait_with_output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if !stdout.is_empty() {
+                    for line in stdout.lines() {
+                        write_log(&format!("[node out] {}", line));
+                    }
+                }
+                if !stderr.is_empty() {
+                    for line in stderr.lines() {
+                        write_log(&format!("[node err] {}", line));
+                    }
+                }
             }
-            Err(e) => {
-                error!("✗ 启动 Node.js 服务失败: {}", e);
-                write_log(&format!("✗ 启动 Node.js 服务失败: {}", e));
-            }
-        }
+        });
     } else {
         write_log(&format!("✗ Node.js 脚本不存在: {:?}", server_script));
     }
 
-    // 启动 Python 服务
+    let python_log = base_path.join("logs").join("python.log");
     if python_script.exists() {
-        match Command::new("python")
+        let mut child = Command::new("python")
             .arg(&python_script)
             .current_dir(base_path.join("scripts"))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-        {
-            Ok(child) => {
-                write_log(&format!("✓ Python 服务已启动 (PID: {})", child.id()));
+            .expect("Failed to start Python");
+
+        write_log(&format!("✓ Python 服务已启动 (PID: {})", child.id()));
+        write_log(&format!("  服务日志: {:?}", python_log));
+
+        std::thread::spawn(move || {
+            if let Ok(output) = child.wait_with_output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if !stdout.is_empty() {
+                    for line in stdout.lines() {
+                        write_log(&format!("[python out] {}", line));
+                    }
+                }
+                if !stderr.is_empty() {
+                    for line in stderr.lines() {
+                        write_log(&format!("[python err] {}", line));
+                    }
+                }
             }
-            Err(e) => {
-                write_log(&format!("✗ 启动 Python 服务失败: {}", e));
-            }
-        }
+        });
     } else {
         write_log("⚠ Python 脚本不存在，梵语 API 将不可用");
     }
@@ -189,7 +222,6 @@ fn get_service_status() -> Result<String, String> {
 fn main() {
     write_log("========== Lumina 应用启动 ==========");
 
-    // 创建日志目录
     let log_path = get_log_path();
     write_log(&format!("日志文件: {:?}", log_path));
 

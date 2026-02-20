@@ -31,3 +31,22 @@ src-tauri/target
 src-tauri/**/*.rs.bk
 src-tauri/Cargo.lock
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.backup*
+
+# Test and temp files
+test_*.py
+test_*.js
+temp_*.json
+*.err
+server.err
+debug_segment.py
+pipeline_test.json
+vidyut_test_results.json
+test_direct.py
+test_segment.py
+nul
+

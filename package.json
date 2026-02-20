@@ -13,7 +13,11 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
-    "build:tauri": "tauri build",
+    "build:tauri": "npm run prebuild && tauri build",
+    "prebuild": "npm run install:server && npm run clean:server && npm run clean:scripts",
+    "install:server": "cd server && npm install",
+    "clean:server": "node -e \"const fs=require('fs');const p='server';fs.readdirSync(p).filter(f=>f.startsWith('test_')||f.endsWith('.log')||f.startsWith('debug')).forEach(f=>fs.rmSync(p+'/'+f,{recursive:true}))\"",
+    "clean:scripts": "node -e \"const fs=require('fs');const p='scripts';fs.readdirSync(p).filter(f=>f.startsWith('test_')||f.endsWith('.backup')||f.endsWith('.log')).forEach(f=>fs.rmSync(p+'/'+f,{recursive:true}))\"",
     "start:server": "cd server && node index.js",
     "start:sanskrit": "cd scripts && python enhanced_sanskrit_api.py"
   },
