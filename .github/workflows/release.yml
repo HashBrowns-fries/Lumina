@@ -30,22 +30,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run build:tauri
         
-      - name: Upload MSI
-        uses: actions/upload-release-asset@v1
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: src-tauri/target/release/bundle/msi/Lumina_1.3.0_x64_en-US.msi
-          asset_name: Lumina_1.3.0_x64_en-US.msi
-          asset_content_type: application/x-msi
-          
-      - name: Upload NSIS
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: src-tauri/target/release/bundle/nsis/Lumina_1.3.0_x64-setup.exe
-          asset_name: Lumina_1.3.0_x64-setup.exe
-          asset_content_type: application/x-executable
