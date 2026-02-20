@@ -1150,8 +1150,18 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           </div>
         )}
         
-        {/* Dictionary Content Display (Local Dictionary + AI Analysis) - PROMINENT WIKTIONARY SECTION */}
-        {(wiktionaryData || isLoadingWiktionary || aiSuggestion || isAiLoading || aiError) && (
+        {/* AI Loading State - Show immediately when loading, independent of wiktionaryData */}
+        {isAiLoading && !aiSuggestion && (
+          <div className="p-8 flex flex-col items-center justify-center gap-3 animate-pulse">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+              <Sparkles size={20} className="text-white animate-pulse" />
+            </div>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Analyzing with AI...</span>
+          </div>
+        )}
+        
+        {/* Dictionary Content Display - AI loading state takes priority */}
+        {(wiktionaryData || isLoadingWiktionary || aiSuggestion || aiError) && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* PROMINENT WIKTIONARY SECTION */}
             {processedWiktionaryData && processedWiktionaryData.length > 0 && (
