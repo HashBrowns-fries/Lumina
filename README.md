@@ -17,18 +17,13 @@ Download the latest installer from GitHub Releases:
 
 **https://github.com/HashBrowns-fries/Lumina/releases**
 
-| 平台 | 安装包类型 | 说明 |
-|------|-----------|------|
-| Windows | `.msi` / `.exe` | 推荐使用 MSI 安装包 |
-| macOS | `.dmg` | 需要签名（测试模式） |
-| Linux | `.AppImage` / `.deb` | 暂未发布 |
-
-#### Windows 安装步骤 / Windows Installation Steps
-
-1. 下载 `Lumina_1.3.1_x64_en-US.msi` 或 `Lumina_1.3.1_x64-setup.exe`
-2. 双击运行安装程序
-3. 按提示完成安装
-4. 从开始菜单或桌面快捷方式启动
+| 平台 | 安装包类型 | 安装方式 |
+|------|-----------|---------|
+| Windows | `.msi` | 双击安装，推荐 |
+| Windows | `.exe` (NSIS) | 双击安装 |
+| macOS | `.dmg` | 拖拽到 Applications 文件夹 |
+| Linux | `.AppImage` | 添加执行权限后运行 |
+| Linux | `.deb` | `sudo dpkg -i *.deb` |
 
 > **注意**：首次运行可能需要几秒钟启动后端服务。  
 > **Note**: First launch may take a few seconds to start backend services.
@@ -36,6 +31,8 @@ Download the latest installer from GitHub Releases:
 #### 依赖要求 / Dependencies
 
 - **Windows 10/11** (需要 WebView2，大多数用户已预装)
+- **macOS 10.15+**
+- **Linux**: 需要 WebKit2GTK
 - **Python 3.8+** (用于梵语 API，可选)
 
 ---
@@ -47,6 +44,7 @@ Download the latest installer from GitHub Releases:
 - **多词条智能显示**：词形变化、不同词性显示为独立编号条目
 - **词形变化检测**：自动识别词形变化并切换到词根形式
 - **多语言支持**：支持德语、英语、梵语等 20+ 语言
+- **离线支持**：可导入本地词典数据库
 
 ### 🤖 AI 增强学习 / AI-Enhanced Learning
 
@@ -58,6 +56,11 @@ Download the latest installer from GitHub Releases:
 
 - **SM-2 算法**：基于科学的记忆曲线
 - **5 个学习等级**：新词、陌生、熟悉、掌握、已复习
+
+### 🕉️ 梵语支持 / Sanskrit Support
+
+- **高精度分析**：基于 Dharma Mitra 的梵语语法分析
+- **多方案转写**：Devanagari、IAST、SLP1、Harvard-Kyoto 等
 
 ### 🎨 多主题界面 / Multi-Theme Interface
 
@@ -76,6 +79,7 @@ Download the latest installer from GitHub Releases:
 3. 选择 AI 提供商并输入 API 密钥
 
 **支持的 AI 提供商 / Supported AI Providers**:
+
 | 提供商 | 说明 | 需要 API Key |
 |--------|------|-------------|
 | Google Gemini | Google AI | ✅ |
@@ -89,6 +93,16 @@ Download the latest installer from GitHub Releases:
 - **Windows**: `%APPDATA%\com.lumina.app\`
 - **macOS**: `~/Library/Application Support/com.lumina.app/`
 - **Linux**: `~/.config/com.lumina.app/`
+
+---
+
+## 🙏 致谢 / Acknowledgments
+
+### Dharma Mitra
+
+特别感谢 **Dharma Mitra** 项目 (https://github.com/versed-in/dharmamitra_sanskrit_grammar) 提供的梵语语法分析 API，为 Lumina 的梵语学习功能提供了强大的技术支持。
+
+Special thanks to **Dharma Mitra** (https://github.com/versed-in/dharmamitra_sanskrit_grammar) for providing the Sanskrit grammar analysis API that powers Lumina's Sanskrit learning features.
 
 ---
 
