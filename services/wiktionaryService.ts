@@ -146,7 +146,7 @@ async function queryBackendDictionary(word: string, language: Language): Promise
     console.debug('[WiktionaryService] Querying backend API:', url);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     
     const response = await fetch(url, { 
       signal: controller.signal,
@@ -260,11 +260,12 @@ export const queryWiktionary = async (
       }
     } else {
       // 浏览器环境：首先尝试后端API，失败时使用browserDictionaryService
+      // 使用较短的超时，避免UI延迟
       try {
         const dictionaryResult = await Promise.race([
           queryBackendDictionary(word, language),
           new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Backend dictionary timeout')), 5000)
+            setTimeout(() => reject(new Error('Backend dictionary timeout')), 2000)
           )
         ]);
         
