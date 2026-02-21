@@ -1,7 +1,7 @@
 {
   "name": "lumina",
   "private": true,
-  "version": "1.3.1",
+  "version": "1.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
     "build:tauri": "npm run prebuild && tauri build",
-    "prebuild": "npm run install:server && npm run clean:server && npm run clean:scripts",
+    "prebuild": "npm run install:server && npm run clean:server && npm run clean:scripts && npm run create:up:dir",
+    "create:up:dir": "node -e \"const fs=require('fs');const path=require('path');const upDir='_up_';if(fs.existsSync(upDir))fs.rmSync(upDir,{recursive:true});fs.mkdirSync(upDir+'/server',{recursive:true});fs.mkdirSync(upDir+'/scripts',{recursive:true});fs.cpSync('server',upDir+'/server',{recursive:true});fs.cpSync('scripts',upDir+'/scripts',{recursive:true});console.log('Created _up_ directory structure')\"",
     "install:server": "cd server && npm install",
     "clean:server": "node -e \"const fs=require('fs');const p='server';fs.readdirSync(p).filter(f=>f.startsWith('test_')||f.endsWith('.log')||f.startsWith('debug')).forEach(f=>fs.rmSync(p+'/'+f,{recursive:true}))\"",
     "clean:scripts": "node -e \"const fs=require('fs');const p='scripts';fs.readdirSync(p).filter(f=>f.startsWith('test_')||f.endsWith('.backup')||f.endsWith('.log')).forEach(f=>fs.rmSync(p+'/'+f,{recursive:true}))\"",

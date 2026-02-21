@@ -66,10 +66,12 @@ fn find_base_path() -> PathBuf {
                 write_log(&format!("✗ exe 同级目录不存在 server/index.js"));
             }
 
-            let server_dir = exe_dir.join("server");
-            if server_dir.exists() {
-                write_log(&format!("✓ server 目录存在"));
-                return exe_dir.to_path_buf();
+            let up_server_path = exe_dir.join("_up_").join("server").join("index.js");
+            if up_server_path.exists() {
+                write_log(&format!("✓ 在 _up_ 目录找到 server/index.js"));
+                return exe_dir.join("_up_");
+            } else {
+                write_log(&format!("✗ _up_/server/index.js 不存在"));
             }
         }
     }
@@ -219,6 +221,11 @@ fn get_service_status() -> Result<String, String> {
     Ok("运行中".to_string())
 }
 
+#[tauri::command]
+async fn check_for_updates() -> Result<Option<String>, String> {
+    Ok(None)
+}
+
 fn main() {
     write_log("========== Lumina 应用启动 ==========");
 
@@ -234,7 +241,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             start_backend_services,
             stop_backend_services,
-            get_service_status
+            get_service_status,
+            check_for_updates
         ])
         .setup(|_app| {
             write_log("执行应用设置...");
