@@ -46,6 +46,8 @@ import DictionarySettings from './components/DictionarySettings';
 import AppearanceSettings from './components/AppearanceSettings';
 import UpdateSettings from './components/UpdateSettings';
 import { deleteDocument } from './services/documentStorage';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 const DEFAULT_AI_CONFIG = {
   provider: 'gemini' as const,
@@ -183,6 +185,103 @@ const App = () => {
         
       } catch (error) {
         console.error('[App] Initialization failed:', error);
+      }
+      
+      // 从 Rust 后端加载词汇
+      try {
+        console.debug('[App] Loading terms from Rust backend...');
+        const terms = await invoke('get_all_terms');
+        
+        if (terms && terms.length > 0) {
+          console.debug('[App] Syncing terms from Rust backend...');
+          
+          for (const term of terms) {
+            // 检查是否已存在
+            const existing = await unifiedStorage.getTermById(term.id);
+            if (!existing) {
+              // 添加到 IndexedDB
+              await unifiedStorage.addTerm({
+                ...term,
+                status: term.status || 0,
+                nextReview: term.nextReview || 0,
+                lastReview: term.lastReview || 0,
+                interval: term.interval || 0,
+                easeFactor: term.easeFactor || 2.5,
+                reps: term.reps || 0
+              });
+              console.debug('[App] Synced term:', term.text);
+            }
+          }
+          
+          // 重新加载词汇
+          const syncedTerms = await unifiedStorage.getAllTerms();
+          const termsRecord: Record<string, Term> = {};
+          for (const term of syncedTerms) {
+            termsRecord[term.id] = term;
+          }
+          setTerms(termsRecord);
+          console.debug('[App] Terms sync complete, total:', syncedTerms.length);
+        }
+      } catch (syncError) {
+        console.debug('[App] No terms to sync or sync failed:', syncError);
+      }
+      
+      // Listen to Tauri events for real-time term updates
+      try {
+        console.debug('[App] Setting up term update listener...');
+        const unlisten = await listen('term-update', async (event) => {
+          try {
+            const { action, term } = event.payload;
+            console.debug('[App] Term update event:', action, term);
+            
+            if (action === 'add') {
+              const termsToAdd = Array.isArray(term) ? term : [term];
+              for (const t of termsToAdd) {
+                const existing = await unifiedStorage.getTermById(t.id);
+                if (!existing) {
+                  const termData = {
+                    ...t,
+                    status: t.status === 'new' ? 0 : (typeof t.status === 'number' ? t.status : 0),
+                    nextReview: t.nextReview || 0,
+                    lastReview: t.lastReview || 0,
+                    interval: t.interval || 0,
+                    easeFactor: t.easeFactor || 2.5,
+                    reps: t.reps || 0,
+                    parentId: t.parentId || undefined,
+                    updatedAt: t.updatedAt || Date.now(),
+                    createdAt: t.createdAt || Date.now()
+                  };
+                  await unifiedStorage.addTerm(termData);
+                }
+              }
+            } else if (action === 'update') {
+              const t = term;
+              const termData = {
+                ...t,
+                status: t.status === 'new' ? 0 : (typeof t.status === 'number' ? t.status : 0),
+                parentId: t.parentId || undefined
+              };
+              await unifiedStorage.updateTerm(t.id, termData);
+            } else if (action === 'delete') {
+              await unifiedStorage.deleteTerm(term.id);
+            }
+            
+            // Refresh terms from IndexedDB
+            const updatedTerms = await unifiedStorage.getAllTerms();
+            const termsRecord: Record<string, Term> = {};
+            for (const termItem of updatedTerms) {
+              termsRecord[termItem.id] = termItem;
+            }
+            setTerms(termsRecord);
+            console.debug('[App] Terms sync complete');
+          } catch (err) {
+            console.error('[App] Term update processing error:', err);
+          }
+        });
+        
+        console.debug('[App] Term update listener setup complete');
+      } catch (listenerError) {
+        console.debug('[App] Term update listener setup failed:', listenerError);
       }
       
       setIsInitialized(true);
@@ -397,8 +496,9 @@ const App = () => {
           mutedText: 'text-slate-400',
           mutedBg: 'bg-slate-800/50',
           navBg: 'bg-slate-800/80',
-          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
-          buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600'
+          inputBg: 'bg-slate-700',
+          buttonPrimary: 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-md hover:shadow-lg',
+          buttonSecondary: 'bg-slate-700 text-slate-100 hover:bg-slate-600 border border-slate-600'
         };
       case 'night':
         return {
@@ -410,8 +510,9 @@ const App = () => {
           mutedText: 'text-indigo-400',
           mutedBg: 'bg-indigo-900/50',
           navBg: 'bg-indigo-900/80',
-          buttonPrimary: 'bg-indigo-700 text-white hover:bg-indigo-800',
-          buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700'
+          inputBg: 'bg-indigo-900',
+          buttonPrimary: 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 shadow-md hover:shadow-lg',
+          buttonSecondary: 'bg-indigo-800 text-indigo-100 hover:bg-indigo-700 border border-indigo-700'
         };
       case 'contrast':
         return {
@@ -423,8 +524,9 @@ const App = () => {
           mutedText: 'text-gray-400',
           mutedBg: 'bg-gray-900/50',
           navBg: 'bg-black/80',
-          buttonPrimary: 'bg-white text-black hover:bg-gray-200',
-          buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800'
+          inputBg: 'bg-gray-900',
+          buttonPrimary: 'bg-white text-black hover:bg-gray-200 shadow-lg',
+          buttonSecondary: 'bg-gray-900 text-white hover:bg-gray-800 border border-white'
         };
       case 'sepia':
         return {
@@ -436,8 +538,9 @@ const App = () => {
           mutedText: 'text-amber-700',
           mutedBg: 'bg-amber-100/50',
           navBg: 'bg-amber-100/80',
-          buttonPrimary: 'bg-amber-600 text-white hover:bg-amber-700',
-          buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+          inputBg: 'bg-amber-50',
+          buttonPrimary: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow-md hover:shadow-lg',
+          buttonSecondary: 'bg-amber-200 text-amber-900 hover:bg-amber-300 border border-amber-300'
         };
       case 'paper':
         return {
@@ -449,8 +552,9 @@ const App = () => {
           mutedText: 'text-stone-600',
           mutedBg: 'bg-stone-100/50',
           navBg: 'bg-stone-100/80',
-          buttonPrimary: 'bg-stone-600 text-white hover:bg-stone-700',
-          buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300'
+          inputBg: 'bg-stone-50',
+          buttonPrimary: 'bg-gradient-to-r from-stone-500 to-zinc-500 text-white hover:from-stone-600 hover:to-zinc-600 shadow-md hover:shadow-lg',
+          buttonSecondary: 'bg-stone-200 text-stone-800 hover:bg-stone-300 border border-stone-300'
         };
       default: // light, auto
         return {
@@ -462,8 +566,9 @@ const App = () => {
           mutedText: 'text-slate-500',
           mutedBg: 'bg-slate-100/50',
           navBg: 'bg-white/80',
-          buttonPrimary: 'bg-indigo-600 text-white hover:bg-indigo-700',
-          buttonSecondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          inputBg: 'bg-slate-50',
+          buttonPrimary: 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 shadow-md hover:shadow-lg',
+          buttonSecondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
         };
     }
   };
@@ -652,45 +757,45 @@ const App = () => {
                   settings={settings}
                 />
               
-               {/* Sync Settings */}
-               <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
-                 <div className="flex items-center gap-3 mb-6">
-                   <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                     <Save size={20} />
-                   </div>
-                   <div>
-                     <h2 className={`text-lg font-bold ${themeClasses.text}`}>Data Sync</h2>
-                     <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Export and backup your data</p>
-                   </div>
-                </div>
-                
-                <div className="flex gap-3">
-                  <button 
-                    onClick={async () => {
-                      const data = await unifiedStorage.exportAllData();
-                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `lumina-backup-${new Date().toISOString().split('T')[0]}.json`;
-                      a.click();
-                    }}
-                     className={`flex-1 px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${themeClasses.buttonPrimary}`}
-                  >
-                    <Download size={18} />
-                    Export Data
-                  </button>
-                </div>
-              </section>
-              
-               {/* Stats */}
-               <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
-                 <div className="flex items-center gap-3 mb-6">
-                   <div className={`p-2 rounded-xl ${themeClasses.mutedBg} ${themeClasses.text}`}>
-                     <Database size={20} />
-                   </div>
-                   <div>
-                     <h2 className={`text-lg font-bold ${themeClasses.text}`}>Statistics</h2>
+                {/* Sync Settings */}
+                <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-xl shadow-sm">
+                      <Save size={20} />
+                    </div>
+                    <div>
+                      <h2 className={`text-lg font-bold ${themeClasses.text}`}>Data Sync</h2>
+                      <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Export and backup your data</p>
+                    </div>
+                 </div>
+                 
+                 <div className="flex gap-3">
+                   <button 
+                     onClick={async () => {
+                       const data = await unifiedStorage.exportAllData();
+                       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                       const url = URL.createObjectURL(blob);
+                       const a = document.createElement('a');
+                       a.href = url;
+                       a.download = `lumina-backup-${new Date().toISOString().split('T')[0]}.json`;
+                       a.click();
+                     }}
+                      className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 transform hover:scale-[1.02] ${themeClasses.buttonPrimary}`}
+                   >
+                     <Download size={18} />
+                     Export Data
+                   </button>
+                 </div>
+               </section>
+               
+                {/* Stats */}
+                <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className={`p-2.5 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-sm ${themeClasses.text}`}>
+                      <Database size={20} />
+                    </div>
+                    <div>
+                      <h2 className={`text-lg font-bold ${themeClasses.text}`}>Statistics</h2>
                      <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Your learning data overview</p>
                    </div>
                  </div>

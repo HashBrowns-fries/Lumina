@@ -1,8 +1,11 @@
 // @ts-nocheck
 import React, { useState } from 'react';
 import { RefreshCw, Download, AlertCircle, CheckCircle2, Info } from 'lucide-react';
-import { check } from '@tauri-apps/plugin-updater';
 import { UserSettings } from '../services/dataModels';
+
+const CURRENT_VERSION = '1.3.1';
+const REPO_OWNER = 'HashBrowns-fries';
+const REPO_NAME = 'Lumina';
 
 interface UpdateSettingsProps {
   settings: UserSettings;
@@ -106,14 +109,20 @@ const UpdateSettings: React.FC<UpdateSettingsProps> = ({ settings }) => {
     setUpdateInfo(null);
 
     try {
-      const update = await check();
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
       
-      if (update) {
+      const data = await response.json();
+      const latestVersion = data.tag_name?.replace('v', '') || data.name;
+      
+      if (latestVersion !== CURRENT_VERSION) {
         setUpdateInfo({
           available: true,
-          version: update.version,
-          body: update.body,
-          date: update.date
+          version: latestVersion,
+          body: data.body || '',
+          date: data.published_at
         });
       } else {
         setUpdateInfo({
@@ -133,9 +142,15 @@ const UpdateSettings: React.FC<UpdateSettingsProps> = ({ settings }) => {
 
     setDownloading(true);
     try {
-      const update = await check();
-      if (update) {
-        await update.downloadAndInstall();
+      const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
+      const data = await response.json();
+      
+      const windowsAsset = data.assets?.find((a: any) => a.name?.endsWith('.exe') || a.name?.endsWith('.msi'));
+      
+      if (windowsAsset?.browser_download_url) {
+        window.open(windowsAsset.browser_download_url, '_blank');
+      } else {
+        window.open(data.html_url, '_blank');
       }
     } catch (err) {
       console.error('Download failed:', err);
@@ -163,7 +178,7 @@ const UpdateSettings: React.FC<UpdateSettingsProps> = ({ settings }) => {
             <div className="flex items-center gap-3">
               <Info size={16} className={themeClasses.mutedText} />
               <span className={`text-sm ${themeClasses.text}`}>
-                Current version: <span className="font-mono font-bold">1.3.0</span>
+                Current version: <span className="font-mono font-bold">{CURRENT_VERSION}</span>
               </span>
             </div>
             <button

@@ -283,10 +283,10 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ terms, languages, onUpd
       <header className="p-8 lg:p-12 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Vocabulary</h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mt-1">
             <p className="text-slate-500 font-medium">Collection of {termList.length} terms.</p>
             {reviewTerms.length > 0 && (
-                <span className="flex items-center gap-1.5 bg-rose-50 text-rose-600 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border border-rose-100">
+                <span className="flex items-center gap-1.5 bg-gradient-to-r from-rose-400 to-pink-500 text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-full shadow-md">
                     <Clock size={12} /> {reviewTerms.length} Due Now
                 </span>
             )}
@@ -301,13 +301,13 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ terms, languages, onUpd
             setMode('review');
           }}
           disabled={reviewTerms.length === 0}
-          className={`px-8 py-4 rounded-2xl font-black text-sm tracking-widest uppercase flex items-center justify-center gap-3 transition-all shadow-xl active:scale-[0.98] group
+          className={`px-8 py-4 rounded-xl font-bold text-sm tracking-wider flex items-center justify-center gap-3 transition-all duration-200 hover:scale-[1.02] shadow-lg
             ${reviewTerms.length > 0 
-                ? 'bg-slate-900 text-white hover:bg-black' 
+                ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600 hover:shadow-xl' 
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}
           `}
         >
-          <Layers size={18} className={reviewTerms.length > 0 ? "group-hover:rotate-12 transition-transform" : ""} />
+          <Layers size={18} />
           Start Daily Review
         </button>
       </header>

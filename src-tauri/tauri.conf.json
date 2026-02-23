@@ -3,7 +3,7 @@
   "productName": "Lumina",
   "version": "1.3.3",
   "build": {
-    "beforeDevCommand": "npm run dev:both",
+    "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist"
@@ -14,13 +14,30 @@
       "dangerousDisableAssetCspModification": true,
       "capabilities": []
     },
-    "windows": [
+"windows": [
       {
+        "label": "main",
         "fullscreen": false,
         "height": 800,
         "resizable": true,
         "title": "Lumina",
         "width": 1200
+      },
+      {
+        "label": "floating",
+        "title": "Lumina Quick",
+        "url": "/floating.html",
+        "width": 380,
+        "height": 520,
+        "x": 100,
+        "y": 100,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "transparent": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": false,
+        "focus": true
       }
     ],
     "withGlobalTauri": true

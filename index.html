@@ -13,15 +13,18 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f8fafc;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .serif-text {
             font-family: 'Lora', serif;
         }
         ::-webkit-scrollbar {
             width: 8px;
+            height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: transparent;
         }
         ::-webkit-scrollbar-thumb {
             background: #cbd5e1;
@@ -29,6 +32,47 @@
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
+        }
+        
+        /* Modern card styles */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Button enhancements */
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border-radius: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+        
+        /* Smooth animations */
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-12px); }
+            to { opacity: 1; transform: translateX(0); }
         }
     </style>
 <script type="importmap">
@@ -38,14 +82,13 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.564.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
+    "react": "https://esm.sh/react@^18.2.0",
     "epubjs": "https://esm.sh/epubjs@0.3.93",
     "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.10.38",
     "idb-keyval": "https://esm.sh/idb-keyval@6.2.1"
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>

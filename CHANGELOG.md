@@ -1,6 +1,161 @@
-# Luminous Lute - Language Learning Reader
+# Lumina - Changelog
 
-## Recent Updates (2025-02-19)
+## v1.4.0 (2025-02-23) - Tauri 2.0 + Rust Backend
+
+### 🔄 Major Architecture Changes
+
+#### Migrated to Tauri 2.0 + Rust Backend
+- **Complete rewrite** of backend from Node.js to Rust
+- **7 new Tauri commands** implemented:
+  - `search_dictionary` - Precise dictionary queries
+  - `get_available_languages` - List installed dictionaries
+  - `get_dictionary_stats` - Dictionary statistics
+  - `batch_query_dictionary` - Batch word lookup
+  - `upload_dictionary_file` - Import Kaikki SQLite databases
+  - `check_python_environment` - Verify Python/Sanskrit API
+  - `process_text` - Text processing with Sanskrit support
+- **Dictionary management commands**:
+  - `rescan_dictionary` - Refresh dictionary index
+  - `remove_dictionary` - Remove from index
+  - `delete_dictionary_file` - Delete dictionary file
+
+### 🐛 Critical Bug Fixes
+
+#### Dictionary Query Precision
+- **Fixed "du" query**: Now returns only "du" (pronoun), not "er" or unrelated words
+- **Fixed "mich" query**: Returns only "mich" (pronoun)
+- **Fixed "kenntest" query**: Correctly shows as inflection of "kennen"
+- **Root cause**: Forms table had corrupted entries with "error-unrecognized-form" tags
+- **Solution**: 
+  - Reversed search order: dictionary table FIRST, forms table SECOND
+  - Added error tag filter: `AND tags NOT LIKE '%error%'`
+  - Only use forms table for true inflections when dictionary has no match
+
+#### Directory Lookup
+- Fixed `get_dict_dir()` to check multiple locations:
+  1. Executable directory (production builds)
+  2. Parent directory (development: `target/debug` → project root)
+  3. Current directory fallback
+
+#### Data Format Support
+- Full Kaikki SQLite format support (`dictionary`, `senses`, `forms`, `sounds` tables)
+- Fixed serde field naming: snake_case (Rust) → camelCase (TypeScript)
+
+### 📝 Documentation
+
+- **Rewrote README.md** with:
+  - Updated version to 1.4.0
+  - Tauri 2.0 + Rust backend description
+  - Updated project structure
+  - Dictionary directory structure documentation
+  - Troubleshooting guide expanded
+- **Updated CHANGELOG.md** with v1.4.0 changes
+
+### 🧹 Cleanup
+
+- Removed temporary test files (`temp_*.json`, `test_*.json`)
+- Removed debug/explore scripts
+- Removed backup files (`*.backup*`)
+- Cleaned Python cache (`__pycache__/`)
+- Kept `node_modules` and `.venv` for faster rebuilds
+
+### 📦 Build System
+
+- Updated `package.json` version: `1.3.3` → `1.4.0`
+- Updated `Cargo.toml` version: `1.3.1` → `1.4.0`
+- GitHub Actions workflow ready for `v1.4.0` tag
+
+---
+
+## v1.3.3 (2025-02-22)
+
+### 🕉️ Sanskrit Support
+
+Sanskrit support is a core feature!
+
+- **Dharma Mitra API Integration** - Sanskrit grammar analysis
+- **Sandhi Word Segmentation** - Automatic compound word splitting
+- **Root Word Lookup** - Dictionary root word search
+- **Grammar Analysis** - Part-of-speech tagging, verb conjugation
+- **Meaning Extraction** - Multiple meanings display
+- **Transliteration Support** - Devanagari, IAST, SLP1, Harvard-Kyoto, ITRANS, WX, Velthuis, ISO 15919
+- **Automatic Processing** - Auto-analysis when selecting Sanskrit words
+
+### UI/UX Improvements
+
+#### 1. Dictionary Results - Prominent Display
+- Moved Wiktionary results to a separate, prominent section at the top of the sidebar
+- Added part of speech filtering (noun, verb, adj, adv)
+- Implemented deduplication of entries
+- Added visual markers for:
+  - Root words (green badge)
+  - Variants (amber badge)
+  - Inflections (purple badge)
+- Enhanced display with:
+  - IPA pronunciation
+  - Etymology
+  - Synonyms and antonyms
+  - Usage examples
+
+#### 2. Continue Reading Feature
+- Added "Reader" button to navigation bar
+- Shows "Continue" badge when there's a last read document
+- Clicking continues from the last reading position
+- Falls back to most recent document if last read was deleted
+
+#### 3. Theme Unification
+- Unified theme colors across all components:
+  - TermSidebar
+  - LibraryView
+  - Navigation bar
+- All 7 themes now consistently apply:
+  - Light
+  - Dark
+  - Sepia
+  - Night
+  - High Contrast
+  - Paper
+  - Auto
+
+#### 4. Book Cover Display
+- Added gradient book covers with depth effect
+- Color coding by source type:
+  - Rose gradient (PDF)
+  - Emerald gradient (EPUB)
+  - Indigo gradient (plain text)
+- Added shadow and overlay effects
+
+#### 5. Vocabulary Highlighting in Reader
+- Fixed term lookup to properly find vocabulary words
+- Words in vocabulary are now highlighted based on learning status:
+  - Learning1: Rose background
+  - Learning2: Orange background
+  - Learning3: Amber background
+  - Learning4: Lime background
+  - WellKnown: Medium weight text
+  - Ignored: Strikethrough
+
+### Bug Fixes
+- Fixed book card click functionality in Library
+- Removed redundant Continue button from book cards
+- Various UI refinements
+
+---
+
+## Previous Releases
+
+### v1.1.0
+- Complete theming support
+- Bug fixes and improvements
+
+### v1.0.0
+- Initial release
+- PDF/EPUB/Text reading
+- Vocabulary building with spaced repetition
+- Wiktionary integration
+- AI-powered analysis
+- Multi-language support
+- Theme customization
 
 ### 🔥 Sanskrit Support (最重要功能!)
 

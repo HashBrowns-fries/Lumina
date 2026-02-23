@@ -511,7 +511,9 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
 
   const selectedText = useMemo(() => {
     if (!selection) return "";
-    return selection.indices.map(i => allWords[i]).join(" ");
+    const text = selection.indices.map(i => allWords[i]).join(" ");
+    // 过滤掉标点符号，只保留字母和数字
+    return text.replace(/[^\p{L}\p{N}\s-]/gu, "").trim();
   }, [selection, allWords]);
 
   const handleAiSuggest = useCallback(async (targetWord: string, targetSentence: string) => {

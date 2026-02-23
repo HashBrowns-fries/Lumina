@@ -1201,126 +1201,158 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                 )}
                 
                 {/* Wiktionary Entries */}
-                <div className={`${theme.cardBg} rounded-3xl overflow-hidden border ${theme.border} shadow-sm`}>
-                  {processedWiktionaryData.slice(0, 5).map((entry, idx) => (
-                    <div key={`entry-${idx}`} className={`p-4 ${idx > 0 ? `border-t ${theme.border}` : ''}`}>
-                      {/* Entry Header: Word, POS, IPA, Root */}
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-lg font-bold ${theme.text}`}>
-                            {entry.word}
-                          </span>
-                          {entry.entryType === 'root' && (
-                            <span className="text-[8px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase font-bold flex items-center gap-1">
-                              <Puzzle size={10} /> Root
+                <div className="space-y-3">
+                  {/* 原形卡片（如果有）*/}
+                  {processedWiktionaryData.filter(e => e.rootWord || e.entryType === 'root').slice(0, 2).map((rootEntry, rootIdx) => (
+                    <div key={`root-${rootIdx}`} className={`${theme.cardBg} rounded-2xl overflow-hidden border-2 border-emerald-500/30 shadow-md`}>
+                      <div className="bg-emerald-500/10 px-4 py-2 border-b border-emerald-500/20">
+                        <div className="flex items-center gap-2">
+                          <Puzzle size={16} className="text-emerald-500" />
+                          <span className="font-bold text-emerald-600">Lemma (Base Form)</span>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-xl font-bold ${theme.text}`}>
+                              {rootEntry.word}
                             </span>
-                          )}
-                          {entry.entryType === 'variant' && (
-                            <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase font-bold">
-                              Variant
-                            </span>
-                          )}
-                          {entry.isInflection && (
-                            <span className="text-[8px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full uppercase font-bold flex items-center gap-1">
-                              <ArrowRight size={10} /> Inflection
-                            </span>
+                            {rootEntry.partOfSpeech && (
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
+                                {rootEntry.partOfSpeech}
+                              </span>
+                            )}
+                          </div>
+                          {rootEntry.pronunciation && (
+                            <div className="flex items-center gap-1 text-xs text-slate-400 font-mono">
+                              <Volume2 size={12} />
+                              {rootEntry.pronunciation.replace(/^\[|\]$/g, '')}
+                            </div>
                           )}
                         </div>
-                        {entry.pronunciation && (
-                          <div className="flex items-center gap-1 text-xs text-slate-400 font-mono">
-                            <Volume2 size={12} />
-                            {entry.pronunciation.replace(/^\[|\]$/g, '')}
+                        
+                        {/* Etymology */}
+                        {rootEntry.etymology ? (
+                          <div className={`mb-3 p-2 rounded-lg ${theme.mutedBg} text-xs`}>
+                            <div className="flex items-center gap-1 mb-1">
+                              <Layers size={12} className="text-purple-500" />
+                              <span className="font-bold text-purple-600">Etymology</span>
+                            </div>
+                            <p className={theme.mutedText}>{rootEntry.etymology}</p>
+                          </div>
+                        ) : null}
+                        
+                        {/* Definitions */}
+                        {rootEntry.definitions && rootEntry.definitions.length > 0 && (
+                          <div className="space-y-1 mb-3">
+                            {rootEntry.definitions.slice(0, 5).filter(def => def && def.trim).map((def, defIdx) => (
+                              <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
+                                <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
+                                {def}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Inflections of this root */}
+                        {rootEntry.hasInflections && rootEntry.inflectionAnalysis?.inflections && rootEntry.inflectionAnalysis.inflections.length > 0 && (
+                          <div className={`p-2 rounded-lg ${theme.mutedBg} text-xs`}>
+                            <div className="flex items-center gap-1 mb-2">
+                              <GitMerge size={12} className="text-blue-500" />
+                              <span className="font-bold text-blue-600">Inflected Forms</span>
+                            </div>
+                            <div className="space-y-1">
+                              {rootEntry.inflectionAnalysis.inflections.slice(0, 8).map((inf: any, idx: number) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                  <span className={`font-bold ${theme.accentText} min-w-[20px]`}>{idx + 1}.</span>
+                                  <div className="flex-1">
+                                    <span className={`font-semibold ${theme.text}`}>{inf.form}</span>
+                                    {inf.tags && inf.tags.length > 0 && (
+                                      <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600`}>
+                                        {Array.isArray(inf.tags) ? inf.tags.join(', ') : inf.tags}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
-                      
-                      {/* Part of Speech */}
-                      {entry.partOfSpeech ? (
-                        <div className="mb-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
-                            {entry.partOfSpeech}
-                          </span>
-                        </div>
-                      ) : null}
-                      
-                      {/* Root Word */}
-                      {(entry.rootWord || entry.rootEntry) ? (
-                        <div className="flex items-center gap-2 mb-2 text-xs">
-                          <Puzzle size={12} className="text-amber-500" />
-                          <span className={theme.mutedText}>Root:</span>
-                          <span className={`font-bold ${theme.text}`}>
-                            {entry.rootWord || entry.rootEntry?.word}
-                          </span>
-                        </div>
-                      ) : null}
-                      
-                      {/* Etymology */}
-                      {entry.etymology ? (
-                        <div className={`mb-2 p-2 rounded-lg ${theme.mutedBg} text-xs`}>
-                          <div className="flex items-center gap-1 mb-1">
-                            <Layers size={12} className="text-purple-500" />
-                            <span className="font-bold text-purple-600">Etymology</span>
+                    </div>
+                  ))}
+                  
+                  {/* 当前查询的词（如果不是原形）*/}
+                  {processedWiktionaryData.filter(e => !e.rootWord && e.entryType !== 'root').slice(0, 3).map((entry, idx) => (
+                    <div key={`entry-${idx}`} className={`${theme.cardBg} rounded-2xl overflow-hidden border ${theme.border} shadow-sm`}>
+                      <div className="p-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-lg font-bold ${theme.text}`}>
+                              {entry.word}
+                            </span>
+                            {entry.partOfSpeech && (
+                              <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
+                                {entry.partOfSpeech}
+                              </span>
+                            )}
                           </div>
-                          <p className={theme.mutedText}>{entry.etymology}</p>
                         </div>
-                      ) : null}
-                      
-                      {/* Definitions */}
-                      {entry.definitions && entry.definitions.length > 0 ? (
-                        <div className="space-y-1">
-                          {entry.definitions.slice(0, 4).filter(def => def && def.trim && def.trim()).map((def, defIdx) => (
-                            <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
-                              <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
-                              {def}
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {/* END Definitions - no content below */}
-                      
-                      {/* Examples */}
-                      {entry.examples && entry.examples.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-100">
-                          <div className="flex items-center gap-1 mb-2">
-                            <QuoteIcon size={12} className="text-blue-400" />
-                            <span className="text-[10px] font-bold text-blue-500 uppercase">Examples</span>
+                        
+                        {/* Root reference */}
+                        {entry.rootWord && (
+                          <div className="flex items-center gap-2 mb-2 text-xs">
+                            <ArrowRight size={12} className="text-amber-500" />
+                            <span className={theme.mutedText}>Form of:</span>
+                            <span className={`font-bold ${theme.text}`}>{entry.rootWord}</span>
                           </div>
-                          {entry.examples.slice(0, 2).map((ex, exIdx) => (
-                            <div key={exIdx} className={`text-xs italic pl-3 border-l-2 border-blue-200 ${theme.mutedText} mb-1`}>
-                              {ex}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Synonyms/Antonyms */}
-                      {(entry.synonyms?.length || entry.antonyms?.length) && (
-                        <div className="mt-3 pt-3 border-t border-slate-100 flex gap-4">
-                          {entry.synonyms && entry.synonyms.length > 0 && (
-                            <div className="flex-1">
-                              <div className="text-[10px] font-bold text-emerald-500 uppercase mb-1">Synonyms</div>
-                              <div className="flex flex-wrap gap-1">
-                                {entry.synonyms.slice(0, 4).map((syn, i) => (
-                                  <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{syn}</span>
-                                ))}
+                        )}
+                        
+                        {/* Definitions */}
+                        {entry.definitions && entry.definitions.length > 0 && (
+                          <div className="space-y-1">
+                            {entry.definitions.slice(0, 3).filter(def => def && def.trim).map((def, defIdx) => (
+                              <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
+                                <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
+                                {def}
                               </div>
-                            </div>
-                          )}
-                          {entry.antonyms && entry.antonyms.length > 0 && (
-                            <div className="flex-1">
-                              <div className="text-[10px] font-bold text-rose-500 uppercase mb-1">Antonyms</div>
-                              <div className="flex flex-wrap gap-1">
-                                {entry.antonyms.slice(0, 4).map((ant, i) => (
-                                  <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{ant}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+                
+                {/* Synonyms/Antonyms */}
+                {processedWiktionaryData.some(e => e.synonyms?.length || e.antonyms?.length) && (
+                  <div className={`${theme.cardBg} rounded-2xl overflow-hidden border ${theme.border} shadow-sm p-4`}>
+                    <div className="flex gap-4">
+                      {processedWiktionaryData[0].synonyms && processedWiktionaryData[0].synonyms.length > 0 && (
+                        <div className="flex-1">
+                          <div className="text-[10px] font-bold text-emerald-500 uppercase mb-1">Synonyms</div>
+                          <div className="flex flex-wrap gap-1">
+                            {processedWiktionaryData[0].synonyms.slice(0, 4).map((syn, i) => (
+                              <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{syn}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {processedWiktionaryData[0].antonyms && processedWiktionaryData[0].antonyms.length > 0 && (
+                        <div className="flex-1">
+                          <div className="text-[10px] font-bold text-rose-500 uppercase mb-1">Antonyms</div>
+                          <div className="flex flex-wrap gap-1">
+                            {processedWiktionaryData[0].antonyms.slice(0, 4).map((ant, i) => (
+                              <span key={i} className={`text-xs px-2 py-0.5 rounded ${theme.mutedBg} ${theme.mutedText}`}>{ant}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Entry Count - hidden for now, can enable if needed */}
                 {false && processedWiktionaryData.length > 5 && (

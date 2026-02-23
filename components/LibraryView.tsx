@@ -885,11 +885,11 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
 
   return (
     <div className={`flex-1 overflow-y-auto p-8 lg:p-12 ${themeClasses.bg}`}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto animate-fade-in">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-4">
           <div>
              <h1 className={`text-3xl font-extrabold tracking-tight ${themeClasses.text}`}>Your Library</h1>
-             <p className={`mt-1 font-medium ${themeClasses.mutedText}`}>Continue reading or import a new book.</p>
+             <p className={`mt-2 text-sm font-medium ${themeClasses.mutedText}`}>Continue reading or import a new book.</p>
           </div>
           <div className="flex gap-3">
             <input 
@@ -902,14 +902,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 border transition-all shadow-sm disabled:opacity-50 ${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} ${themeClasses.hoverBg}`}
+              className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 border transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 ${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} ${themeClasses.hoverBg}`}
             >
               {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
               Upload Book
             </button>
             <button 
               onClick={() => setShowAdd(true)}
-              className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95 ${themeClasses.buttonPrimary}`}
+              className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all duration-200 hover:scale-[1.02] shadow-md hover:shadow-xl ${themeClasses.buttonPrimary}`}
             >
               <Plus size={20} strokeWidth={3} />
               Paste Text
@@ -918,7 +918,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ texts, languages, onSelect, o
         </header>
 
         {showAdd && (
-          <div className={`mb-12 ${themeClasses.cardBg} rounded-3xl border ${themeClasses.border} p-8 shadow-xl animate-in fade-in slide-in-from-top-4 duration-300`}>
+          <div className={`mb-12 ${themeClasses.cardBg} rounded-2xl border-0 p-8 shadow-xl animate-fade-in`}>
              <h2 className={`text-xl font-bold mb-6 ${themeClasses.text}`}>
                {pendingFile ? `New ${pendingFile.type.toUpperCase()}` : 'New Plain Text'}
              </h2>

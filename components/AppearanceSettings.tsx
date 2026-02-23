@@ -141,49 +141,51 @@ const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ settings, onUpd
   };
 
   return (
-     <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-          <Palette size={20} />
+    <div className="space-y-6">
+      <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 bg-gradient-to-br from-indigo-400 to-violet-500 text-white rounded-xl shadow-sm">
+            <Palette size={20} />
+          </div>
+          <div>
+             <h2 className={`text-lg font-bold ${themeClasses.text}`}>Appearance</h2>
+             <p className={`text-xs font-medium ${themeClasses.mutedText}`}>
+               Customize reading experience like Apple Books
+             </p>
+         </div>
         </div>
-        <div>
-           <h2 className={`text-lg font-bold ${themeClasses.text}`}>Appearance</h2>
-           <p className={`text-xs font-medium ${themeClasses.mutedText}`}>
-             Customize reading experience like Apple Books
-           </p>
-        </div>
-      </div>
 
-      {/* 主题选择 */}
-      <div className="mb-8">
-         <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${themeClasses.text}`}>
-          <Sun size={14} />
-          Theme
-        </h3>
-        <div className="grid grid-cols-4 gap-3">
-          {themes.map((theme) => {
-            const Icon = theme.icon;
-            return (
-              <button
-                key={theme.id}
-                onClick={() => handleThemeChange(theme.id)}
-                 className={`p-3 rounded-xl border transition-all ${settings.theme === theme.id ? 'border-indigo-500 ring-2 ring-indigo-100' : `${themeClasses.border} ${themeClasses.hoverBg}`}`}
-               >
-                 <div className="flex flex-col items-center gap-2">
-                   <div className={`w-10 h-10 rounded-full ${theme.bgColor} flex items-center justify-center`}>
-                     <Icon size={18} className={theme.previewText} />
+        {/* 主题选择 */}
+        <div className="mb-8">
+           <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${themeClasses.text}`}>
+            <Sun size={14} />
+            Theme
+          </h3>
+          <div className="grid grid-cols-4 gap-3">
+            {themes.map((theme) => {
+              const Icon = theme.icon;
+              return (
+                <button
+                  key={theme.id}
+                  onClick={() => handleThemeChange(theme.id)}
+                   className={`p-3 rounded-xl border transition-all duration-200 hover:scale-[1.02] ${settings.theme === theme.id ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : `${themeClasses.border} ${themeClasses.hoverBg}`}`}
+                 >
+                  <div className="flex flex-col items-center gap-2">
+                    <div className={`w-10 h-10 rounded-full ${theme.bgColor} flex items-center justify-center shadow-sm`}>
+                      <Icon size={18} className={theme.previewText} />
+                    </div>
+                    <span className={`text-xs font-medium ${themeClasses.text}`}>{theme.name}</span>
                    </div>
-                   <span className={`text-xs font-medium ${themeClasses.text}`}>{theme.name}</span>
-                 </div>
-              </button>
-            );
-          })}
+                </button>
+               );
+             })}
+           </div>
         </div>
-      </div>
+      </section>
 
       {/* 字体设置 */}
-      <div className="space-y-6">
-        <div>
+      <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
+          <div>
           <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 ${themeClasses.text}`}>
             <Type size={14} />
             Typography
@@ -296,8 +298,8 @@ const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ settings, onUpd
             </p>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 };
 

@@ -1,203 +1,257 @@
-# 🌟 Lumina - 智能语言学习应用 / Intelligent Language Learning App
+# 🌟 Lumina - Intelligent Language Learning App
 
-> 一个现代化的语言学习应用，集成了智能词典、词形变化分析和间隔重复系统  
-> A modern language learning app with intelligent dictionary, morphology analysis and spaced repetition system
+> A modern desktop application for language learning with intelligent dictionary, morphology analysis, and spaced repetition system  
+> Powered by Tauri 2.0 + Rust backend
 
-![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)
+![Backend](https://img.shields.io/badge/backend-Rust%20%2B%20Tauri-orange.svg)
 
 ---
 
-## 📥 下载安装 / Download & Install
+## 📥 Download & Install
 
-### 🎯 推荐方式：使用安装包 (Recommended: Use Installer)
+### Recommended: Use GitHub Releases
 
-从 GitHub Releases 下载最新安装包：  
-Download the latest installer from GitHub Releases:
+Download the latest installer from:
 
 **https://github.com/HashBrowns-fries/Lumina/releases**
 
-| 平台 | 安装包类型 | 安装方式 |
-|------|-----------|---------|
-| Windows | `.msi` | 双击安装，推荐 |
-| Windows | `.exe` (NSIS) | 双击安装 |
-| macOS | `.dmg` | 拖拽到 Applications 文件夹 |
-| Linux | `.AppImage` | 添加执行权限后运行 |
+| Platform | Installer | Installation |
+|----------|-----------|--------------|
+| Windows | `.msi` | Double-click to install (Recommended) |
+| Windows | `.exe` (NSIS) | Double-click to install |
+| macOS | `.dmg` | Drag to Applications folder |
+| Linux | `.AppImage` | Add execute permission and run |
 | Linux | `.deb` | `sudo dpkg -i *.deb` |
 
-> **注意**：首次运行可能需要几秒钟启动后端服务。  
-> **Note**: First launch may take a few seconds to start backend services.
+> **Note**: First launch may take a few seconds to initialize.
 
-#### 依赖要求 / Dependencies
+#### System Requirements
 
-- **Windows 10/11** (需要 WebView2，大多数用户已预装)
+- **Windows 10/11** (WebView2 required, pre-installed on most systems)
 - **macOS 10.15+**
-- **Linux**: 需要 WebKit2GTK
-- **Python 3.8+** (用于梵语 API，可选)
+- **Linux**: WebKit2GTK required
+- **Python 3.8+** (Optional, for Sanskrit API)
 
 ---
 
-## ✨ 核心特性 / Core Features
+## ✨ Core Features
 
-### 📚 智能词典系统 / Intelligent Dictionary
+### 📚 Intelligent Dictionary System
 
-- **多词条智能显示**：词形变化、不同词性显示为独立编号条目
-- **词形变化检测**：自动识别词形变化并切换到词根形式
-- **多语言支持**：支持德语、英语、梵语等 20+ 语言
-- **离线支持**：可导入本地词典数据库
+- **Multi-entry Display**: Different parts of speech shown as separate numbered entries
+- **Inflection Detection**: Automatically identifies inflected forms and shows lemma
+- **Multi-language Support**: German, English, Sanskrit, and 20+ languages
+- **Offline Support**: Import local SQLite dictionary databases
+- **Precise Queries**: Exact match only, no fuzzy matching
 
-### 🤖 AI 增强学习 / AI-Enhanced Learning
+### 🤖 AI-Enhanced Learning
 
-- **语法分析**：AI 驱动的详细语法分析
-- **智能翻译**：上下文感知的翻译和建议
-- **支持多个 AI 提供商**：Google Gemini、DeepSeek、阿里云通义千问、Ollama
+- **Grammar Analysis**: AI-powered detailed grammatical breakdown
+- **Context-aware Translation**: Smart translation with suggestions
+- **Multiple AI Providers**: Google Gemini, DeepSeek, Alibaba Qwen, Ollama
 
-### 🔄 间隔重复系统 / Spaced Repetition System
+### 🔄 Spaced Repetition System
 
-- **SM-2 算法**：基于科学的记忆曲线
-- **5 个学习等级**：新词、陌生、熟悉、掌握、已复习
+- **SM-2 Algorithm**: Science-based memory curve optimization
+- **5 Learning Levels**: New, Unfamiliar, Familiar, Mastered, Reviewed
 
-### 🕉️ 梵语支持 / Sanskrit Support
+### 🕉️ Sanskrit Support
 
-- **高精度分析**：基于 Dharma Mitra 的梵语语法分析
-- **多方案转写**：Devanagari、IAST、SLP1、Harvard-Kyoto 等
+- **High-precision Analysis**: Dharma Mitra Sanskrit grammar API
+- **Multiple Transliteration**: Devanagari, IAST, SLP1, Harvard-Kyoto
 
-### 🎨 多主题界面 / Multi-Theme Interface
+### 🎨 Multi-Theme Interface
 
-- **7 种主题**：Light、Dark、Night、Sepia、Paper、High Contrast、Auto
+- **7 Themes**: Light, Dark, Night, Sepia, Paper, High Contrast, Auto
 
 ---
 
-## ⚙️ 配置说明 / Configuration
+## ⚙️ Configuration
 
-### AI 配置 / AI Configuration
+### AI Configuration
 
-首次使用 AI 分析功能时，需要配置 API 密钥：
+First time using AI analysis:
 
-1. 点击右上角 **Settings** (设置)
-2. 进入 **AI Configuration** (AI 配置)
-3. 选择 AI 提供商并输入 API 密钥
+1. Click **Settings** (top-right)
+2. Go to **AI Configuration**
+3. Select AI provider and enter API key
 
-**支持的 AI 提供商 / Supported AI Providers**:
+**Supported AI Providers**:
 
-| 提供商 | 说明 | 需要 API Key |
-|--------|------|-------------|
+| Provider | Description | API Key Required |
+|----------|-------------|------------------|
 | Google Gemini | Google AI | ✅ |
 | DeepSeek | DeepSeek AI | ✅ |
-| 阿里云通义千问 | Alibaba Cloud | ✅ |
-| Ollama | 本地运行 | ❌ (可选) |
+| Alibaba Qwen | Alibaba Cloud | ✅ |
+| Ollama | Local deployment | ❌ (Optional) |
 
-### 数据目录 / Data Directory
+### Data Directory
 
-桌面应用的数据存储位置：
+Desktop app stores data at:
 - **Windows**: `%APPDATA%\com.lumina.app\`
 - **macOS**: `~/Library/Application Support/com.lumina.app/`
 - **Linux**: `~/.config/com.lumina.app/`
 
+### Dictionary Directory
+
+Place dictionary databases in:
+- **Windows**: `%APPDATA%\com.lumina.app\dict\`
+- **Development**: `<project-root>\dict\`
+
+Supported format: Kaikki SQLite (`dictionary.db` or `<lang>_dict.db`)
+
+Structure:
+```
+dict/
+  ├── German/
+  │   └── de_dict.db
+  ├── English/
+  │   └── en_dict.db
+  └── Sanskrit/
+      └── sa_dict.db
+```
+
 ---
 
-## 🙏 致谢 / Acknowledgments
+## 🙏 Acknowledgments
 
 ### Dharma Mitra
-
-特别感谢 **Dharma Mitra** 项目 (https://github.com/versed-in/dharmamitra_sanskrit_grammar) 提供的梵语语法分析 API，为 Lumina 的梵语学习功能提供了强大的技术支持。
 
 Special thanks to **Dharma Mitra** (https://github.com/versed-in/dharmamitra_sanskrit_grammar) for providing the Sanskrit grammar analysis API that powers Lumina's Sanskrit learning features.
 
 ---
 
-## 🛠️ 开发指南 / Development Guide
+## 🛠️ Development Guide
 
-### 前提条件 / Prerequisites
+### Prerequisites
 
-- **Node.js 18+**: [下载 / Download](https://nodejs.org/)
-- **Python 3.8+** (可选，用于梵语 API)
-- **Rust** (仅用于构建桌面应用)
+- **Node.js 18+**: [Download](https://nodejs.org/)
+- **Rust** (for Tauri desktop app): [Install via rustup](https://rustup.rs/)
+- **Python 3.8+** (Optional, for Sanskrit API)
 
-### 本地开发 / Local Development
+### Local Development
 
 ```bash
-# 克隆项目
+# Clone repository
 git clone https://github.com/HashBrowns-fries/Lumina.git
 cd Lumina
 
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
-npm run dev:all
+# Start development (frontend + Tauri)
+npm run dev:tauri
+
+# Optional: Start Sanskrit API
+npm run dev:sanskrit-api
 ```
 
-这将启动：
-- 前端: http://localhost:3000
-- 词典 API: http://localhost:3006
-- 梵语 API: http://localhost:3008
+This launches:
+- Frontend: http://localhost:3000
+- Sanskrit API: http://localhost:3008 (optional)
 
-### 构建桌面应用 / Build Desktop App
+### Build Desktop App
 
 ```bash
-# 安装 Rust (如未安装)
+# Install Rust (if not installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# 构建
+# Build for current platform
 npm run build:tauri
+
+# Or build for all platforms (requires CI/CD)
+# See .github/workflows/release.yml
 ```
 
-输出文件位于：
-- `src-tauri/target/release/lumina.exe`
-- `src-tauri/target/release/bundle/msi/`
+Output location:
+- `src-tauri/target/release/lumina.exe` (Windows)
+- `src-tauri/target/release/bundle/` (installers)
 
 ---
 
-## 📁 文件结构 / Project Structure
+## 📁 Project Structure
 
 ```
 Lumina/
-├── src-tauri/           # Tauri 桌面应用
-│   ├── src/main.rs      # Rust 入口点
-│   └── tauri.conf.json  # 应用配置
-├── server/              # Node.js 后端 (端口 3006)
-├── scripts/             # Python 后端 (端口 3008)
-├── components/          # React 组件
-├── services/           # 业务逻辑服务
-├── dist/               # 构建输出
+├── src-tauri/              # Tauri 2.0 Rust backend
+│   ├── src/
+│   │   ├── main.rs         # Application entry point
+│   │   ├── db.rs           # SQLite dictionary queries
+│   │   ├── commands/       # Tauri commands
+│   │   └── floating.rs     # Floating window manager
+│   ├── tauri.conf.json     # Tauri configuration
+│   └── Cargo.toml          # Rust dependencies
+├── src/                    # React + TypeScript frontend
+├── components/             # React components
+├── services/               # Frontend services
+├── scripts/                # Python scripts (Sanskrit API)
+│   ├── enhanced_sanskrit_api.py
+│   ├── sandhi_api.py
+│   └── manage_dictionaries.py
+├── dict/                   # Dictionary databases (Kaikki format)
+├── data/                   # Static data files
+├── .github/workflows/      # GitHub Actions CI/CD
+│   └── release.yml         # Release automation
+├── package.json            # Node.js dependencies
+├── vite.config.ts          # Vite build configuration
 └── README.md
 ```
 
 ---
 
-## 🔧 故障排除 / Troubleshooting
+## 🔧 Troubleshooting
 
-### AI 分析不工作 / AI Analysis Not Working
+### AI Analysis Not Working
 
-1. **检查 API 密钥**：确保已在设置中配置有效的 API 密钥
-2. **检查网络连接**：确保可以访问 AI 提供商
-3. **查看错误信息**：错误信息会提示具体问题
+1. **Check API Key**: Ensure valid API key configured in Settings
+2. **Network Connection**: Verify connectivity to AI provider
+3. **Error Messages**: Check error message for specific issues
 
-### 后端服务未启动 / Backend Services Not Starting
+### Dictionary Queries Returning Wrong Results
 
-1. 检查 Python 是否已安装：`python --version`
-2. 检查 Node.js 是否已安装：`node --version`
-3. 查看应用日志了解具体错误
+1. **Dictionary Format**: Ensure Kaikki SQLite format
+2. **Directory Structure**: Verify `dict/<Language>/<lang>_dict.db`
+3. **Rescan Dictionaries**: Use Settings → Rescan Dictionaries
 
-### 端口被占用 / Port Already in Use
+### Build Errors
 
-如果端口 3006 或 3008 被占用：
-- Windows: `netstat -ano | findstr "3006"`
-- 关闭占用端口的程序，或修改配置使用其他端口
+**Rust not found:**
+```bash
+rustup install stable
+rustup default stable
+```
+
+**WebView2 missing (Windows):**
+Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+
+### Port Conflicts
+
+If port 3000/3008 is in use:
+- Windows: `netstat -ano | findstr "3000"`
+- Kill process or change port in config
 
 ---
 
-## 📄 许可证 / License
+## 📄 License
 
 MIT License
 
 ---
 
-## 🤝 贡献 / Contributing
+## 🤝 Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
+
+**Report issues**: https://github.com/HashBrowns-fries/Lumina/issues
 
 ---
 
-**有问题？请提交 Issue**: https://github.com/HashBrowns-fries/Lumina/issues
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+---
+
+**Lumina v1.4.0** - Built with Tauri 2.0 + Rust

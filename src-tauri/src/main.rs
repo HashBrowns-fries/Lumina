@@ -1,11 +1,27 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use log::{error, info, warn, LevelFilter};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use tauri::Manager;
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::thread;
+use std::time::Duration;
+use tauri::{Manager, Emitter, menu::{Menu, MenuItem}, tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent}};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_clipboard_manager::ClipboardExt;
+
+mod floating;
+mod db;
+mod commands;
+
+use floating::FloatingWindowManager;
+use commands::{dictionary::*, sanskrit::*, vocabulary::*};
+
+struct AppState {
+    floating_manager: Mutex<Option<FloatingWindowManager>>,
+    clipboard_monitoring: Mutex<Arc<AtomicBool>>,
+}
 
 fn get_log_path() -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
@@ -57,21 +73,14 @@ fn chrono_lite_timestamp() -> String {
 fn find_base_path() -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            let server_path = exe_dir.join("server").join("index.js");
-            write_log(&format!("检查 exe 同级目录: {:?}", exe_dir));
-            if server_path.exists() {
-                write_log(&format!("✓ 在 exe 同级目录找到 server"));
+            let scripts_path = exe_dir.join("scripts");
+            if scripts_path.exists() {
                 return exe_dir.to_path_buf();
-            } else {
-                write_log(&format!("✗ exe 同级目录不存在 server/index.js"));
             }
 
-            let up_server_path = exe_dir.join("_up_").join("server").join("index.js");
-            if up_server_path.exists() {
-                write_log(&format!("✓ 在 _up_ 目录找到 server/index.js"));
+            let up_scripts_path = exe_dir.join("_up_").join("scripts");
+            if up_scripts_path.exists() {
                 return exe_dir.join("_up_");
-            } else {
-                write_log(&format!("✗ _up_/server/index.js 不存在"));
             }
         }
     }
@@ -84,98 +93,31 @@ fn find_base_path() -> PathBuf {
 #[tauri::command]
 fn start_backend_services() -> Result<String, String> {
     let base_path = find_base_path();
-    let server_script = base_path.join("server").join("index.js");
     let python_script = base_path.join("scripts").join("enhanced_sanskrit_api.py");
 
     write_log("========== 后端服务启动 ==========");
     write_log(&format!("基础路径: {:?}", base_path));
-    write_log(&format!("Node.js 脚本: {:?}", server_script));
     write_log(&format!("Python 脚本: {:?}", python_script));
 
-    if base_path.exists() {
-        write_log("基础路径目录内容:");
-        if let Ok(entries) = fs::read_dir(&base_path) {
-            for entry in entries.flatten() {
-                write_log(&format!("  📁 {:?}", entry.file_name()));
-            }
-        }
-
-        let server_dir = base_path.join("server");
-        if server_dir.exists() {
-            write_log("✓ server 目录存在");
-            if let Ok(entries) = fs::read_dir(&server_dir) {
-                write_log("server 目录内容 (前10个):");
-                for entry in entries.flatten().take(10) {
-                    write_log(&format!("  📄 {:?}", entry.file_name()));
-                }
-            }
-
-            let node_modules = server_dir.join("node_modules");
-            if node_modules.exists() {
-                write_log("✓ node_modules 存在");
-            } else {
-                write_log("✗ node_modules 不存在!");
-            }
-        } else {
-            write_log("✗ server 目录不存在!");
-        }
-    } else {
-        write_log("✗ 基础路径不存在!");
-    }
-
-    match Command::new("node").arg("--version").output() {
+    match Command::new("python").arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
-                write_log(&format!("✓ Node.js 可用: {}", version.trim()));
+                write_log(&format!("✓ Python 可用: {}", version.trim()));
             } else {
-                write_log("✗ node --version 失败");
+                write_log("✗ python --version 失败");
             }
         }
         Err(e) => {
             write_log(&format!(
-                "✗ 找不到 node 命令: {}. 请安装 Node.js https://nodejs.org/",
+                "✗ 找不到 python 命令: {}. 请安装 Python https://python.org/",
                 e
             ));
         }
     }
 
-    let node_log = get_service_log_path();
-    if server_script.exists() {
-        let mut child = Command::new("node")
-            .arg(&server_script)
-            .current_dir(base_path.join("server"))
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("Failed to start Node.js");
-
-        write_log(&format!("✓ Node.js 服务已启动 (PID: {})", child.id()));
-        write_log(&format!("  服务日志: {:?}", node_log));
-
-        std::thread::spawn(move || {
-            if let Ok(output) = child.wait_with_output() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if !stdout.is_empty() {
-                    for line in stdout.lines() {
-                        write_log(&format!("[node out] {}", line));
-                    }
-                }
-                if !stderr.is_empty() {
-                    for line in stderr.lines() {
-                        write_log(&format!("[node err] {}", line));
-                    }
-                }
-            }
-        });
-    } else {
-        write_log(&format!("✗ Node.js 脚本不存在: {:?}", server_script));
-    }
-
-    let python_log = base_path.join("logs").join("python.log");
     if python_script.exists() {
-        let mut child = Command::new("python")
+        let child = Command::new("python")
             .arg(&python_script)
             .current_dir(base_path.join("scripts"))
             .stdout(Stdio::piped())
@@ -184,7 +126,6 @@ fn start_backend_services() -> Result<String, String> {
             .expect("Failed to start Python");
 
         write_log(&format!("✓ Python 服务已启动 (PID: {})", child.id()));
-        write_log(&format!("  服务日志: {:?}", python_log));
 
         std::thread::spawn(move || {
             if let Ok(output) = child.wait_with_output() {
@@ -226,6 +167,88 @@ async fn check_for_updates() -> Result<Option<String>, String> {
     Ok(None)
 }
 
+#[tauri::command]
+async fn show_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn toggle_floating_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn send_query_to_floating(app: tauri::AppHandle, query: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        window.emit("new-query", query).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn read_clipboard_text(app: tauri::AppHandle) -> Result<String, String> {
+    app.clipboard().read_text().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn start_clipboard_monitor(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let monitoring = state.clipboard_monitoring.lock().unwrap().clone();
+    monitoring.store(true, Ordering::SeqCst);
+    
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let mut last_clipboard = String::new();
+        
+        while monitoring.load(Ordering::SeqCst) {
+            if let Ok(text) = app_handle.clipboard().read_text() {
+                if !text.is_empty() && text != last_clipboard && text.len() < 200 {
+                    last_clipboard = text.clone();
+                    write_log(&format!("[Clipboard] Detected: {}", text));
+                    
+                    if let Some(window) = app_handle.get_webview_window("floating") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        let _ = window.emit("new-query", text);
+                    }
+                }
+            }
+            thread::sleep(Duration::from_millis(800));
+        }
+        write_log("[Clipboard] Monitor stopped");
+    });
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn stop_clipboard_monitor(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let monitoring = state.clipboard_monitoring.lock().unwrap();
+    monitoring.store(false, Ordering::SeqCst);
+    Ok(())
+}
+
 fn main() {
     write_log("========== Lumina 应用启动 ==========");
 
@@ -238,19 +261,147 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(AppState {
+            floating_manager: Mutex::new(None),
+            clipboard_monitoring: Mutex::new(Arc::new(AtomicBool::new(false))),
+        })
+        .manage(|app: &tauri::AppHandle| init_vocabulary_state(app))
         .invoke_handler(tauri::generate_handler![
             start_backend_services,
             stop_backend_services,
             get_service_status,
-            check_for_updates
+            check_for_updates,
+            show_floating_window,
+            hide_floating_window,
+            toggle_floating_window,
+            send_query_to_floating,
+            read_clipboard_text,
+            start_clipboard_monitor,
+            stop_clipboard_monitor,
+            search_dictionary,
+            get_dictionary_stats,
+            get_available_languages,
+            get_dictionary_suggestions,
+            batch_query_dictionary,
+            upload_dictionary_file,
+            rescan_dictionary,
+            remove_dictionary,
+            delete_dictionary_file,
+            sanskrit_split,
+            sanskrit_transliterate,
+            sanskrit_health,
+            check_python_environment,
+            process_text,
+            save_term,
+            get_all_terms,
+            delete_term,
+            update_term
         ])
-        .setup(|_app| {
+        .setup(|app| {
             write_log("执行应用设置...");
+
+            let _app_handle = app.handle().clone();
+            
+            let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
+            let _ = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    write_log("检测到全局快捷键 Ctrl+Shift+L");
+                    if let Some(window) = _app.get_webview_window("floating") {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
+            });
+            write_log("已注册全局快捷键 Ctrl+Shift+L");
+
+            let show_item = MenuItem::with_id(app, "show", "Show Lumina Quick", true, None::<&str>)?;
+            let toggle_item = MenuItem::with_id(app, "toggle", "Toggle (Ctrl+Shift+L)", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &toggle_item, &quit_item])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().cloned().unwrap())
+                .menu(&menu)
+                .tooltip("Lumina Quick (Ctrl+Shift+L)")
+                .on_menu_event(move |app, event| {
+                    match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("floating") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "toggle" => {
+                            if let Some(window) = app.get_webview_window("floating") {
+                                if window.is_visible().unwrap_or(false) {
+                                    let _ = window.hide();
+                                } else {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("floating") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+            
+            write_log("系统托盘已创建");
 
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 write_log("开始启动后端服务...");
                 let _ = start_backend_services();
+            });
+
+            let app_handle_for_clipboard = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                if let Some(state) = app_handle_for_clipboard.try_state::<AppState>() {
+                    let monitoring = state.clipboard_monitoring.lock().unwrap().clone();
+                    monitoring.store(true, Ordering::SeqCst);
+                    
+                    let mut last_clipboard = String::new();
+                    write_log("[Clipboard] Starting clipboard monitor...");
+                    
+                    while monitoring.load(Ordering::SeqCst) {
+                        if let Ok(text) = app_handle_for_clipboard.clipboard().read_text() {
+                            if !text.is_empty() && text != last_clipboard && text.len() < 200 {
+                                last_clipboard = text.clone();
+                                write_log(&format!("[Clipboard] Detected: {}", text));
+                                
+                                if let Some(window) = app_handle_for_clipboard.get_webview_window("floating") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                    let _ = window.emit("new-query", text);
+                                }
+                            }
+                        }
+                        std::thread::sleep(Duration::from_millis(800));
+                    }
+                }
             });
 
             write_log("应用设置完成");
