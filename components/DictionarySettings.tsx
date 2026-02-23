@@ -32,6 +32,9 @@ const DictionarySettings: React.FC<DictionarySettingsProps> = ({ settings }) => 
   const loadDictionaries = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      console.log('[DictionarySettings] Calling get_available_languages...');
       const result = await invoke('get_available_languages');
       
       console.log('[DictionarySettings] Raw result from invoke:', result);
@@ -40,10 +43,15 @@ const DictionarySettings: React.FC<DictionarySettingsProps> = ({ settings }) => 
         const langs = Array.isArray(result) ? result : (result as any).languages || [];
         console.log('[DictionarySettings] Parsed languages:', langs);
         setDictionaries(langs);
+      } else {
+        console.warn('[DictionarySettings] Unexpected result format:', result);
+        setDictionaries([]);
       }
     } catch (err: any) {
-      console.error('Failed to load dictionaries:', err);
-      setError(err.message || 'Failed to load dictionaries');
+      console.error('[DictionarySettings] Failed to load dictionaries:', err);
+      const errorMsg = err.message || err.toString() || 'Failed to load dictionaries';
+      setError(`Failed to load dictionaries: ${errorMsg}`);
+      setDictionaries([]);
     } finally {
       setLoading(false);
     }
