@@ -360,10 +360,12 @@ fn main() {
             });
             write_log("已注册全局快捷键 Ctrl+Shift+L");
 
+            let show_main_item = MenuItem::with_id(app, "show_main", "Show Main Window", true, None::<&str>)?;
             let show_item = MenuItem::with_id(app, "show", "Show Lumina Quick", true, None::<&str>)?;
             let toggle_item = MenuItem::with_id(app, "toggle", "Toggle (Ctrl+Shift+L)", true, None::<&str>)?;
+            let separator = MenuItem::with_id(app, "separator", "Separator", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &toggle_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_main_item, &show_item, &toggle_item, &separator, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().unwrap())
@@ -371,6 +373,12 @@ fn main() {
                 .tooltip("Lumina Quick (Ctrl+Shift+L)")
                 .on_menu_event(move |app, event| {
                     match event.id.as_ref() {
+                        "show_main" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
                         "show" => {
                             if let Some(window) = app.get_webview_window("floating") {
                                 let _ = window.show();

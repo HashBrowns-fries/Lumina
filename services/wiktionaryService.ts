@@ -25,6 +25,7 @@ export interface WiktionaryEntry {
   hasInflections?: boolean;
   variantOf?: string;
   selfInflectionAnalysis?: any;
+  inflectionForms?: Array<{ form: string; tags?: string; normalizedForm?: string }>;
 }
 
 export interface WiktionaryResponse {
@@ -59,7 +60,10 @@ function setToCache(word: string, language: Language, response: WiktionaryRespon
 
 async function queryTauriDictionary(word: string, language: Language): Promise<WiktionaryResponse> {
   try {
+    console.log('[WiktionaryService] Querying Tauri dictionary for:', word, language.id);
     const result: any = await invoke('search_dictionary', { word, language: language.id });
+    
+    console.log('[WiktionaryService] Raw result from Tauri:', result);
     
     if (result.success && result.entries && result.entries.length > 0) {
       const entries = result.entries.map((entry: any) => {
@@ -78,6 +82,20 @@ async function queryTauriDictionary(word: string, language: Language): Promise<W
           hasInflections = true;
         }
         
+        // 确定 entryType
+        let entryType = 'normal';
+        if (entry.root_form) {
+          // 这个条目是原形（被查询词的 lemma）
+          entryType = 'root';
+        }
+        
+        console.log('[WiktionaryService] Processing entry:', {
+          word: entry.text,
+          root_form: entry.root_form,
+          entryType,
+          inflectionForms: entry.inflections
+        });
+        
         return {
           word: entry.text,
           language: entry.language,
@@ -89,20 +107,39 @@ async function queryTauriDictionary(word: string, language: Language): Promise<W
           examples: [],
           synonyms: [],
           antonyms: [],
-          isInflection: false,
-          inflectionForm: null,
+          isInflection: !!entry.root_form,
+          inflectionForm: entry.root_form ? entry.text : null,
           rootWord: entry.root_form || null,
-          inflectionTags: null,
-          rootEntry: null,
-          entryType: 'normal',
+          inflectionTags: entry.inflections?.[0]?.tags || null,
+          rootEntry: entry.root_form ? {
+            word: entry.root_form,
+            definitions: entry.definition ? [entry.definition] : []
+          } : null,
+          entryType,
           normalizedWord: entry.root_form || null,
           inflectionAnalysis,
           hasInflections,
           variantOf: null,
-          selfInflectionAnalysis: null
+          selfInflectionAnalysis: null,
+          inflectionForms: entry.inflections?.map((inf: any) => {
+            let parsedTags = inf.tags;
+            if (typeof inf.tags === 'string' && inf.tags.startsWith('[')) {
+              try {
+                parsedTags = JSON.parse(inf.tags).join(', ');
+              } catch (e) {
+                parsedTags = inf.tags;
+              }
+            }
+            return {
+              form: inf.form,
+              tags: parsedTags,
+              normalizedForm: inf.normalized_form
+            };
+          })
         };
       });
       
+      console.log('[WiktionaryService] Processed entries:', entries.length);
       return { success: true, entries };
     }
     

@@ -1255,27 +1255,53 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                           </div>
                         )}
                         
-                        {/* Inflections of this root */}
-                        {rootEntry.hasInflections && rootEntry.inflectionAnalysis?.inflections && rootEntry.inflectionAnalysis.inflections.length > 0 && (
-                          <div className={`p-2 rounded-lg ${theme.mutedBg} text-xs`}>
-                            <div className="flex items-center gap-1 mb-2">
-                              <GitMerge size={12} className="text-blue-500" />
-                              <span className="font-bold text-blue-600">Inflected Forms</span>
+                        {/* Link to current word */}
+                        <div className={`mt-3 p-3 rounded-lg bg-indigo-50 border border-indigo-100`}>
+                          <div className="flex items-center gap-2 text-xs text-indigo-700">
+                            <ArrowRight size={14} className="text-indigo-500" />
+                            <span className="font-semibold">Current word:</span>
+                            <span className="font-bold">{word}</span>
+                          </div>
+                        </div>
+
+                        {/* Word Forms - show inside Lemma card */}
+                        {rootEntry.inflectionForms && rootEntry.inflectionForms.length > 0 && (
+                          <div className="mt-3 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Layers size={14} className="text-purple-500" />
+                              <span className="text-xs font-bold text-purple-600">Word Forms</span>
                             </div>
-                            <div className="space-y-1">
-                              {rootEntry.inflectionAnalysis.inflections.slice(0, 8).map((inf: any, idx: number) => (
-                                <div key={idx} className="flex items-start gap-2">
-                                  <span className={`font-bold ${theme.accentText} min-w-[20px]`}>{idx + 1}.</span>
-                                  <div className="flex-1">
-                                    <span className={`font-semibold ${theme.text}`}>{inf.form}</span>
-                                    {inf.tags && inf.tags.length > 0 && (
-                                      <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600`}>
-                                        {Array.isArray(inf.tags) ? inf.tags.join(', ') : inf.tags}
-                                      </span>
-                                    )}
+                            <div className="flex flex-wrap gap-1.5">
+                              {(() => {
+                                const grouped: Record<string, string[]> = {};
+                                rootEntry.inflectionForms.forEach((form: any) => {
+                                  if (!form.form || form.form.trim() === '') return;
+                                  const key = form.tags || 'Other';
+                                  if (!grouped[key]) grouped[key] = [];
+                                  if (!grouped[key].includes(form.form)) {
+                                    grouped[key].push(form.form);
+                                  }
+                                });
+                                return Object.entries(grouped).slice(0, 6).map(([tag, forms]) => (
+                                  <div key={tag} className="mr-3 mb-2">
+                                    <div className="text-[10px] font-bold text-purple-600 mb-1">{tag}</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {forms.slice(0, 8).map((form: string, idx: number) => (
+                                        <span 
+                                          key={idx}
+                                          className={`text-xs px-1.5 py-0.5 rounded ${
+                                            form === word 
+                                              ? 'bg-purple-500 text-white font-bold' 
+                                              : 'bg-purple-100 text-purple-700'
+                                          }`}
+                                        >
+                                          {form}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                ));
+                              })()}
                             </div>
                           </div>
                         )}
@@ -1285,44 +1311,131 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
                   
                   {/* 当前查询的词（如果不是原形）*/}
                   {processedWiktionaryData.filter(e => !e.rootWord && e.entryType !== 'root').slice(0, 3).map((entry, idx) => (
-                    <div key={`entry-${idx}`} className={`${theme.cardBg} rounded-2xl overflow-hidden border ${theme.border} shadow-sm`}>
-                      <div className="p-4">
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-lg font-bold ${theme.text}`}>
-                              {entry.word}
-                            </span>
-                            {entry.partOfSpeech && (
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
-                                {entry.partOfSpeech}
+                    <React.Fragment key={`entry-${idx}`}>
+                      {/* Current word card */}
+                      <div className={`${theme.cardBg} rounded-2xl overflow-hidden border ${theme.border} shadow-sm`}>
+                        <div className="p-4">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-lg font-bold ${theme.text}`}>
+                                {entry.word}
                               </span>
-                            )}
+                              {entry.partOfSpeech && (
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${theme.accentText} bg-indigo-50 px-2 py-0.5 rounded`}>
+                                  {entry.partOfSpeech}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Root reference */}
+                          {entry.rootWord && (
+                            <div className="flex items-center gap-2 mb-2 text-xs">
+                              <ArrowRight size={12} className="text-amber-500" />
+                              <span className={theme.mutedText}>Form of:</span>
+                              <span className={`font-bold ${theme.text}`}>{entry.rootWord}</span>
+                            </div>
+                          )}
+                          
+                          {/* Definitions */}
+                          {entry.definitions && entry.definitions.length > 0 && (
+                            <div className="space-y-1">
+                              {entry.definitions.slice(0, 3).filter(def => def && def.trim).map((def, defIdx) => (
+                                <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
+                                  <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
+                                  {def}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Inflection card (if has inflection tags) */}
+                      {entry.inflectionTags && (
+                        <div className={`${theme.cardBg} rounded-2xl overflow-hidden border-2 border-blue-500/30 shadow-sm`}>
+                          <div className="bg-blue-500/10 px-4 py-2 border-b border-blue-500/20">
+                            <div className="flex items-center gap-2">
+                              <GitMerge size={16} className="text-blue-500" />
+                              <span className="font-bold text-blue-600">Inflection Details</span>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className={`text-sm font-bold ${theme.text}`}>{entry.word}</span>
+                              <ArrowRight size={14} className="text-blue-400" />
+                              <span className={`text-sm font-bold ${theme.text}`}>{entry.rootWord}</span>
+                            </div>
+                            <div className={`p-3 rounded-lg ${theme.mutedBg}`}>
+                              <p className={`text-sm leading-relaxed ${theme.mutedText}`}>{entry.inflectionTags}</p>
+                            </div>
                           </div>
                         </div>
-                        
-                        {/* Root reference */}
-                        {entry.rootWord && (
-                          <div className="flex items-center gap-2 mb-2 text-xs">
-                            <ArrowRight size={12} className="text-amber-500" />
-                            <span className={theme.mutedText}>Form of:</span>
-                            <span className={`font-bold ${theme.text}`}>{entry.rootWord}</span>
+                      )}
+                      
+                      {/* Inflected Forms card (if has inflectionForms) */}
+                      {entry.inflectionForms && entry.inflectionForms.length > 0 && (
+                        <div className={`${theme.cardBg} rounded-2xl overflow-hidden border-2 border-purple-500/30 shadow-sm`}>
+                          <div className="bg-purple-500/10 px-4 py-2 border-b border-purple-500/20">
+                            <div className="flex items-center gap-2">
+                              <Layers size={16} className="text-purple-500" />
+                              <span className="font-bold text-purple-600">Word Forms</span>
+                            </div>
                           </div>
-                        )}
-                        
-                        {/* Definitions */}
-                        {entry.definitions && entry.definitions.length > 0 && (
-                          <div className="space-y-1">
-                            {entry.definitions.slice(0, 3).filter(def => def && def.trim).map((def, defIdx) => (
-                              <div key={`def-${defIdx}`} className={`text-sm leading-relaxed ${theme.text}`}>
-                                <span className={`font-bold ${theme.accentText} mr-2`}>{defIdx + 1}.</span>
-                                {def}
-                              </div>
-                            ))}
+                          <div className="p-4">
+                            <div className="space-y-3">
+                              {(() => {
+                                const grouped: Record<string, string[]> = {};
+                                entry.inflectionForms.forEach(form => {
+                                  // Skip empty forms
+                                  if (!form.form || form.form.trim() === '') return;
+                                  
+                                  const key = form.tags || 'Other';
+                                  if (!grouped[key]) grouped[key] = [];
+                                  if (!grouped[key].includes(form.form)) {
+                                    grouped[key].push(form.form);
+                                  }
+                                });
+                                
+                                // Debug: log grouped forms
+                                console.log('[TermSidebar] Grouped inflections:', grouped);
+                                
+                                if (Object.keys(grouped).length === 0) {
+                                  return (
+                                    <div className={`text-sm ${theme.mutedText}`}>
+                                      No additional forms available
+                                    </div>
+                                  );
+                                }
+                                
+                                return Object.entries(grouped).map(([tag, forms]) => (
+                                  <div key={tag}>
+                                    <div className={`text-xs font-bold uppercase tracking-wider text-purple-600 mb-1.5`}>
+                                      {tag}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {forms.map((form, idx) => (
+                                        <span 
+                                          key={idx}
+                                          className={`text-xs px-2.5 py-1 rounded-md ${
+                                            form === entry.word 
+                                              ? 'bg-purple-500 text-white font-bold' 
+                                              : `${theme.mutedBg} ${theme.mutedText}`
+                                          }`}
+                                        >
+                                          {form}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ));
+                              })()}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+                      )}
+                    </React.Fragment>
                   ))}
                 </div>
                 
@@ -1546,16 +1659,19 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
           <button 
             type="button"
             onClick={() => {
-              // 删除当前term及其所有变体
-              const currentKey = `${language.id}:${existingTerm.text.toLowerCase()}`;
+              // Find the actual key of current term from allTerms
+              const currentKey = Object.keys(allTerms).find(
+                key => allTerms[key].id === existingTerm.id
+              ) || `${language.id}:${existingTerm.text.toLowerCase()}`;
+              
+              // Find all child terms (variations/inflections)
               const childKeys = Object.keys(allTerms).filter(key => {
                 const term = allTerms[key];
                 return term.parentId === currentKey;
               });
               
-              // 首先删除子项
+              // First delete children, then delete the current term
               childKeys.forEach(key => onDeleteTerm(key));
-              // 然后删除当前项
               onDeleteTerm(currentKey);
               onClose();
             }}

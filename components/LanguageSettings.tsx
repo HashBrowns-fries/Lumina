@@ -8,6 +8,7 @@ interface LanguageSettingsProps {
   languages: Language[];
   onUpdate: (languages: Language[]) => void;
   settings?: UserSettings;
+  onSettingsUpdate?: (updates: Partial<UserSettings>) => void;
 }
 
 interface StandardLanguage {
@@ -16,7 +17,7 @@ interface StandardLanguage {
   dictionaryUrl: string;
 }
 
-const LanguageSettings: React.FC<LanguageSettingsProps> = ({ languages, onUpdate, settings }) => {
+const LanguageSettings: React.FC<LanguageSettingsProps> = ({ languages, onUpdate, settings, onSettingsUpdate }) => {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customLanguage, setCustomLanguage] = useState({
@@ -213,7 +214,44 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ languages, onUpdate
   };
 
   return (
-    <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
+    <>
+      {/* Double-Click Save Setting */}
+      <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border} mb-6`}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
+              <Check size={20} />
+            </div>
+            <div className="flex-1">
+              <h2 className={`text-base font-bold ${themeClasses.text}`}>Double-Click to Save</h2>
+              <p className={`text-xs ${themeClasses.mutedText} mt-1`}>
+                Enable double-click on a word to automatically save it to vocabulary
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const newValue = !currentSettings.autoSaveOnClick;
+              // Call parent handler if provided
+              if (onSettingsUpdate) {
+                onSettingsUpdate({ autoSaveOnClick: newValue });
+              }
+            }}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out ${
+              currentSettings.autoSaveOnClick ? 'bg-emerald-500' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                currentSettings.autoSaveOnClick ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+      </section>
+
+      {/* Languages Section */}
+      <section className={`border rounded-3xl p-6 shadow-sm ${themeClasses.cardBg} ${themeClasses.border}`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
@@ -401,7 +439,8 @@ const LanguageSettings: React.FC<LanguageSettingsProps> = ({ languages, onUpdate
           </div>
         )}
       </div>
-    </section>
+      </section>
+    </>
   );
 };
 

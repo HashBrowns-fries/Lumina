@@ -319,76 +319,102 @@ pub fn search_dictionary(word: &str, lang_code: &str) -> Result<Vec<DictionaryEn
     let mut results: Vec<DictionaryEntry> = Vec::new();
     let mut seen_texts: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // Step 1: Query dictionary table FIRST for exact match (base words like "du", "mich")
-    let mut dictionary_id: Option<i64> = None;
-
-    if let Ok(id) = conn.query_row(
-        "SELECT id FROM dictionary WHERE word = ?1 LIMIT 1",
-        params![word],
-        |r| r.get::<_, i64>(0),
-    ) {
-        dictionary_id = Some(id);
-    }
-
-    // If not found, try normalized_word
-    if dictionary_id.is_none() {
-        if let Ok(id) = conn.query_row(
-            "SELECT id FROM dictionary WHERE normalized_word = ?1 LIMIT 1",
-            params![normalized],
-            |r| r.get::<_, i64>(0),
-        ) {
-            dictionary_id = Some(id);
-        }
-    }
-
-    // Step 2: Only if dictionary has no match, check forms table for inflections
-    // Filter out error tags to avoid corrupted data
+    // Step 1: Check forms table FIRST to find if the word is an inflection
     let mut root_entry_id: Option<i64> = None;
     let mut inflection_tags: Vec<String> = Vec::new();
 
-    if dictionary_id.is_none() {
-        // Query forms table for exact form match (excluding error tags)
-        if let Ok(mut forms_stmt) = conn.prepare(
-            "SELECT dictionary_id, tags FROM forms 
-             WHERE form = ?1 AND (tags IS NULL OR tags NOT LIKE '%error%')
-             LIMIT 1",
-        ) {
-            if let Ok(row) = forms_stmt.query_row(params![word], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
-            }) {
-                root_entry_id = Some(row.0);
-                if let Some(tags) = row.1 {
-                    inflection_tags.push(tags);
-                }
-            }
-        }
+    eprintln!("[DICT] Step 1: Checking forms table for inflections...");
 
-        // If still not found, try normalized_form
-        if root_entry_id.is_none() {
-            if let Ok(mut forms_stmt) = conn.prepare(
-                "SELECT dictionary_id, tags FROM forms 
-                 WHERE normalized_form = ?1 AND (tags IS NULL OR tags NOT LIKE '%error%')
-                 LIMIT 1",
-            ) {
-                if let Ok(row) = forms_stmt.query_row(params![normalized], |r| {
-                    Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
-                }) {
-                    root_entry_id = Some(row.0);
-                    if let Some(tags) = row.1 {
-                        inflection_tags.push(tags);
-                    }
-                }
+    // Query forms table for exact form match (excluding error tags) - case insensitive
+    if let Ok(mut forms_stmt) = conn.prepare(
+        "SELECT dictionary_id, tags FROM forms 
+         WHERE LOWER(form) = LOWER(?1) AND (tags IS NULL OR tags NOT LIKE '%error%')
+         LIMIT 1",
+    ) {
+        if let Ok(row) = forms_stmt.query_row(params![word], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+        }) {
+            root_entry_id = Some(row.0);
+            eprintln!("[DICT] Found in forms table: dictionary_id={}", row.0);
+            if let Some(tags) = row.1 {
+                inflection_tags.push(tags.clone());
+                eprintln!("[DICT] inflection_tags: {}", tags);
             }
-        }
-
-        // Use forms result only if dictionary had no match
-        if root_entry_id.is_some() {
-            dictionary_id = root_entry_id;
+        } else {
+            eprintln!("[DICT] Not found in forms table (exact match)");
         }
     }
 
+    // If not found in forms, try normalized_form - case insensitive
+    if root_entry_id.is_none() {
+        if let Ok(mut forms_stmt) = conn.prepare(
+            "SELECT dictionary_id, tags FROM forms 
+             WHERE LOWER(normalized_form) = LOWER(?1) AND (tags IS NULL OR tags NOT LIKE '%error%')
+             LIMIT 1",
+        ) {
+            if let Ok(row) = forms_stmt.query_row(params![normalized], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+            }) {
+                root_entry_id = Some(row.0);
+                eprintln!(
+                    "[DICT] Found in forms table (normalized): dictionary_id={}",
+                    row.0
+                );
+                if let Some(tags) = row.1 {
+                    inflection_tags.push(tags);
+                }
+            } else {
+                eprintln!("[DICT] Not found in forms table (normalized)");
+            }
+        }
+    }
+
+    // Step 2: If forms table has the word, use the root entry from forms
+    // Otherwise, query dictionary table for direct match
+    let mut dictionary_id: Option<i64> = None;
+
+    if root_entry_id.is_some() {
+        eprintln!("[DICT] Using root_entry_id from forms table");
+        dictionary_id = root_entry_id;
+    } else {
+        eprintln!("[DICT] Step 2: Querying dictionary table for direct match...");
+        // Query dictionary table for exact match
+        if let Ok(id) = conn.query_row(
+            "SELECT id FROM dictionary WHERE word = ?1 LIMIT 1",
+            params![word],
+            |r| r.get::<_, i64>(0),
+        ) {
+            dictionary_id = Some(id);
+            eprintln!("[DICT] Found in dictionary table: id={}", id);
+        } else {
+            eprintln!("[DICT] Not found in dictionary table (exact)");
+        }
+
+        // If not found, try normalized_word
+        if dictionary_id.is_none() {
+            if let Ok(id) = conn.query_row(
+                "SELECT id FROM dictionary WHERE normalized_word = ?1 LIMIT 1",
+                params![normalized],
+                |r| r.get::<_, i64>(0),
+            ) {
+                dictionary_id = Some(id);
+                eprintln!("[DICT] Found in dictionary table (normalized): id={}", id);
+            } else {
+                eprintln!("[DICT] Not found in dictionary table (normalized)");
+            }
+        }
+    }
+
+    eprintln!("[DICT] Final dictionary_id: {:?}", dictionary_id);
+    eprintln!("[DICT] Final root_entry_id: {:?}", root_entry_id);
+
     // 步骤 4: 获取词条完整信息
     if let Some(entry_id) = dictionary_id {
+        eprintln!("[DICT] ========== Fetching entry details ==========");
+        eprintln!("[DICT] entry_id: {}", entry_id);
+        eprintln!("[DICT] query_word: {}", word);
+        eprintln!("[DICT] root_entry_id: {:?}", root_entry_id);
+
         let mut stmt = conn
             .prepare(
                 "SELECT d.id, d.word, d.lang, d.lang_code, d.pos, d.etymology_text, d.pronunciation,
@@ -403,6 +429,9 @@ pub fn search_dictionary(word: &str, lang_code: &str) -> Result<Vec<DictionaryEn
             .query_map(params![entry_id], |row| {
                 let dict_word: String = row.get(1)?;
                 let normalized_word: Option<String> = row.get(8)?;
+
+                eprintln!("[DICT] dict_word from DB: {}", dict_word);
+                eprintln!("[DICT] normalized_word: {:?}", normalized_word);
 
                 // 获取 IPA
                 let ipa_from_sounds: Option<String> =
@@ -424,28 +453,91 @@ pub fn search_dictionary(word: &str, lang_code: &str) -> Result<Vec<DictionaryEn
 
                 let ipa = ipa_from_sounds.or(row.get::<_, Option<String>>(6).unwrap_or(None));
 
+                // 获取原形词（如果是屈折形式）
+                let root_form_word: Option<String> = if root_entry_id.is_some() && dict_word != word
+                {
+                    // 从 dictionary 表获取原形词
+                    match conn.query_row(
+                        "SELECT word FROM dictionary WHERE id = ?1",
+                        params![entry_id],
+                        |r| r.get::<_, String>(0),
+                    ) {
+                        Ok(w) => {
+                            eprintln!("[DICT] root_form_word: {}", w);
+                            Some(w)
+                        }
+                        Err(e) => {
+                            eprintln!("[DICT] Failed to get root_form: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    eprintln!("[DICT] Not an inflection, root_form_word: None");
+                    None
+                };
+
                 // 构建屈折信息（如果查询的词是屈折形式）
-                let inflections_for_this: Option<Vec<Inflection>> =
-                    if root_entry_id.is_some() && dict_word != word {
-                        Some(vec![Inflection {
-                            form: word.to_string(),
-                            normalized_form: None,
-                            tags: if inflection_tags.is_empty() {
-                                None
-                            } else {
-                                Some(inflection_tags.join("; "))
-                            },
-                        }])
-                    } else {
-                        None
-                    };
+                let mut inflections_for_this: Option<Vec<Inflection>> = None;
+
+                if root_entry_id.is_some() {
+                    eprintln!(
+                        "[DICT] Fetching all inflected forms for dictionary_id={}",
+                        entry_id
+                    );
+
+                    // Query ALL forms from forms table for this lemma
+                    let mut forms_stmt = conn
+                        .prepare(
+                            "SELECT form, tags, normalized_form FROM forms 
+                             WHERE dictionary_id = ?1 AND (tags IS NULL OR tags NOT LIKE '%error%')
+                             ORDER BY form
+                             LIMIT 50",
+                        )
+                        .map_err(|e| e.to_string());
+
+                    if let Ok(mut stmt) = forms_stmt {
+                        match stmt.query_map(params![entry_id], |row| {
+                            Ok(Inflection {
+                                form: row.get(0)?,
+                                tags: row.get(1)?,
+                                normalized_form: row.get(2)?,
+                            })
+                        }) {
+                            Ok(mapped_rows) => {
+                                let all_forms: Vec<Inflection> =
+                                    mapped_rows.filter_map(|r| r.ok()).collect();
+
+                                eprintln!(
+                                    "[DICT] Found {} inflected forms for entry_id={}",
+                                    all_forms.len(),
+                                    entry_id
+                                );
+
+                                // Debug: print first few forms
+                                for (i, form) in all_forms.iter().take(5).enumerate() {
+                                    eprintln!(
+                                        "[DICT] Form {}: form='{}', tags='{:?}', normalized='{:?}'",
+                                        i, form.form, form.tags, form.normalized_form
+                                    );
+                                }
+
+                                if !all_forms.is_empty() {
+                                    inflections_for_this = Some(all_forms);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[DICT] Error querying forms: {}", e);
+                            }
+                        }
+                    }
+                }
 
                 Ok(DictionaryEntry {
                     entry_id: Some(entry_id.to_string()),
                     text: dict_word,
                     language: row.get(2)?,
                     translation: None,
-                    root_form: normalized_word.clone(),
+                    root_form: root_form_word,
                     grammar: row.get::<_, Option<String>>(4)?,
                     definition: row.get::<_, Option<String>>(7)?,
                     details: None,
@@ -457,11 +549,24 @@ pub fn search_dictionary(word: &str, lang_code: &str) -> Result<Vec<DictionaryEn
             .map_err(|e| e.to_string())?;
 
         for entry in entries.filter_map(|e| e.ok()) {
+            eprintln!(
+                "[DICT] Entry: text={}, root_form={:?}",
+                entry.text, entry.root_form
+            );
             if !seen_texts.contains(&entry.text) {
                 seen_texts.insert(entry.text.clone());
                 results.push(entry);
             }
         }
+
+        eprintln!("[DICT] Total results before return: {}", results.len());
+        for (i, r) in results.iter().enumerate() {
+            eprintln!(
+                "[DICT] Result {}: text={}, root_form={:?}",
+                i, r.text, r.root_form
+            );
+        }
+        eprintln!("[DICT] ========== End search_dictionary ==========");
     }
 
     Ok(results)

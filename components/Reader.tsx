@@ -19,13 +19,14 @@ interface ReaderProps {
   terms: Record<string, Term>;
   onUpdateTerm: (term: Term, linkedChild?: Term) => void;
   onDeleteTerm: (key: string) => void;
+  onSave?: (term: Term) => void;
   language: Language;
   aiConfig: AIConfig;
   settings: UserSettings;
   onClose: () => void;
 }
 
-const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm, language, aiConfig, settings, onClose }) => {
+const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm, onSave, language, aiConfig, settings, onClose }) => {
   const [selection, setSelection] = useState<SelectionState | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [fullContent, setFullContent] = useState<string>('');
@@ -470,6 +471,44 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
       });
       setIsLinkingMode(false);
     }
+  };
+
+  const handleWordDoubleClick = (wordIndex: number) => {
+    // Only save if autoSaveOnClick is enabled and onSave handler exists
+    if (!settings?.autoSaveOnClick || !onSave) return;
+    
+    const word = allWords[wordIndex];
+    if (!word || !isWord(word)) return;
+    
+    // Check if term already exists
+    const wordLower = word.toLowerCase();
+    const existingTermKey = Object.keys(terms).find(key => {
+      const term = terms[key];
+      return term && term.languageId === language.id && term.text.toLowerCase() === wordLower;
+    });
+    
+    if (existingTermKey) {
+      console.log('[Reader] Term already exists, skipping auto-save:', word);
+      return;
+    }
+    
+    // Auto-save the word
+    console.log('[Reader] Auto-saving word:', word);
+    const newTerm: Term = {
+      id: `${language.id}:${wordLower}:${Date.now()}`,
+      text: word,
+      languageId: language.id,
+      translation: '',
+      status: TermStatus.New,
+      notes: '',
+      nextReview: Date.now() + 24 * 60 * 60 * 1000,
+      interval: 0,
+      easeFactor: 2.5,
+      reps: 0
+    };
+    
+    // Save via parent handler
+    onSave(newTerm);
   };
 
   const getTermStyles = (token: string, idx: number) => {
@@ -968,13 +1007,14 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                        const wordDetected = isWord(word);
                        if (!wordDetected) return <span key={wordIdx} className="text-slate-300 whitespace-pre-wrap">{word}</span>;
                        return (
-                         <span 
-                           key={wordIdx}
-                           onClick={() => handleWordClick(globalWordIndex)}
-                           className={getTermStyles(word, globalWordIndex)}
-                         >
-                           {word}{' '}
-                         </span>
+                          <span 
+                            key={wordIdx}
+                            onClick={() => handleWordClick(globalWordIndex)}
+                            onDoubleClick={() => handleWordDoubleClick(globalWordIndex)}
+                            className={getTermStyles(word, globalWordIndex)}
+                          >
+                            {word}{' '}
+                          </span>
                        );
                      })}
                    </p>

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { 
   BookOpen, 
   Library, 
@@ -37,23 +37,36 @@ import {
   AppState as NewAppState 
 } from './services/dataModels';
 import { DEFAULT_LANGUAGES, fixLanguageIds } from './src/constants/languages';
-import Reader from './components/Reader';
-import LibraryView from './components/LibraryView';
-import LanguageSettings from './components/LanguageSettings';
-import VocabularyView from './components/VocabularyView';
-import AISettings from './components/AISettings';
-import DictionarySettings from './components/DictionarySettings';
-import AppearanceSettings from './components/AppearanceSettings';
-import UpdateSettings from './components/UpdateSettings';
 import { deleteDocument } from './services/documentStorage';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+// Lazy load large components
+const Reader = lazy(() => import('./components/Reader'));
+const LibraryView = lazy(() => import('./components/LibraryView'));
+const VocabularyView = lazy(() => import('./components/VocabularyView'));
+const LanguageSettings = lazy(() => import('./components/LanguageSettings'));
+const AISettings = lazy(() => import('./components/AISettings'));
+const DictionarySettings = lazy(() => import('./components/DictionarySettings'));
+const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
+const UpdateSettings = lazy(() => import('./components/UpdateSettings'));
+
+// Get default values from environment variables
+const DEFAULT_AI_PROVIDER = (process.env.DEFAULT_AI_PROVIDER as any) || 'gemini';
+const DEFAULT_AI_MODEL = process.env.DEFAULT_AI_MODEL || 'gemini-2.0-flash';
+
 const DEFAULT_AI_CONFIG = {
-  provider: 'gemini' as const,
-  model: 'gemini-3-pro-preview',
-  baseUrl: '',
-  apiKeys: {}
+  provider: DEFAULT_AI_PROVIDER,
+  model: DEFAULT_AI_MODEL,
+  baseUrl: undefined,
+  apiKeys: {
+    gemini: process.env.GEMINI_API_KEY || '',
+    deepseek: process.env.DEEPSEEK_API_KEY || '',
+    aliyun: process.env.ALIYUN_API_KEY || '',
+    qwen: process.env.QWEN_API_KEY || '',
+    openai: process.env.OPENAI_API_KEY || '',
+    ollama: process.env.OLLAMA_API_KEY || ''
+  }
 };
 
 const App = () => {
@@ -701,49 +714,68 @@ const App = () => {
 
       {/* Main Content */}
       <main className="pt-16 h-screen">
-        {view === 'library' && (
-          <LibraryView 
-            texts={texts}
-            languages={languages}
-            onSelect={handleSelectText}
-            onAdd={handleAddText}
-            onDelete={handleDeleteText}
-            settings={settings}
-          />
-        )}
-        
-        {view === 'reader' && currentText && (
-          <Reader 
-            text={currentText}
-            language={currentLanguage}
-            terms={terms}
-            onUpdateTerm={handleUpdateTerm}
-            onDeleteTerm={handleDeleteTerm}
-            aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
-            settings={settings}
-            onClose={() => setView('library')}
-          />
-        )}
-        
-        {view === 'vocabulary' && (
-          <VocabularyView 
-            terms={terms}
-            languages={languages}
-            onUpdateTerm={handleUpdateTerm}
-            onDeleteTerm={handleDeleteTerm}
-            settings={settings}
-          />
-        )}
-        
-         {view === 'settings' && (
-           <div className={`flex-1 overflow-y-auto p-8 ${themeClasses.bg}`}>
-             <div className="max-w-3xl mx-auto space-y-6">
-               <LanguageSettings 
-                 languages={languages}
-                 onUpdate={handleUpdateLanguages}
-                 settings={settings}
-               />
-              
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-3" />
+              <p className="text-slate-500 text-sm font-medium">Loading...</p>
+            </div>
+          </div>
+        }>
+          {view === 'library' && (
+            <LibraryView 
+              texts={texts}
+              languages={languages}
+              onSelect={handleSelectText}
+              onAdd={handleAddText}
+              onDelete={handleDeleteText}
+              settings={settings}
+            />
+          )}
+          
+          {view === 'reader' && currentText && (
+            <Reader 
+              text={currentText}
+              language={currentLanguage}
+              terms={terms}
+              onUpdateTerm={handleUpdateTerm}
+              onDeleteTerm={handleDeleteTerm}
+              onSave={(term) => {
+                // Add term to state
+                setTerms(prev => ({ ...prev, [term.id]: term }));
+                // Save to storage
+                unifiedStorage.addTerm(term).catch(err => {
+                  console.error('Failed to save term to storage:', err);
+                });
+              }}
+              aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
+              settings={settings}
+              onClose={() => setView('library')}
+            />
+          )}
+          
+          {view === 'vocabulary' && (
+            <VocabularyView 
+              terms={terms}
+              languages={languages}
+              onUpdateTerm={handleUpdateTerm}
+              onDeleteTerm={handleDeleteTerm}
+              settings={settings}
+            />
+          )}
+          
+          {view === 'settings' && (
+            <div className={`flex-1 overflow-y-auto p-8 ${themeClasses.bg}`}>
+              <div className="max-w-3xl mx-auto space-y-6">
+                <LanguageSettings 
+                  languages={languages}
+                  onUpdate={handleUpdateLanguages}
+                  settings={settings}
+                  onSettingsUpdate={(updates) => {
+                    setSettings(prev => ({ ...prev, ...updates, updatedAt: Date.now() }));
+                  }}
+                />
+               
                 <DictionarySettings settings={settings} />
                
                <AppearanceSettings
@@ -785,47 +817,14 @@ const App = () => {
                      <Download size={18} />
                      Export Data
                    </button>
-                 </div>
-               </section>
-               
-                {/* Stats */}
-                <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className={`p-2.5 rounded-xl bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-sm ${themeClasses.text}`}>
-                      <Database size={20} />
-                    </div>
-                    <div>
-                      <h2 className={`text-lg font-bold ${themeClasses.text}`}>Statistics</h2>
-                     <p className={`text-xs font-medium ${themeClasses.mutedText}`}>Your learning data overview</p>
-                   </div>
-                 </div>
+                  </div>
+                </section>
                 
-                 <div className="grid grid-cols-4 gap-4">
-                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
-                     <div className="text-2xl font-bold text-indigo-600">{texts.length}</div>
-                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Texts</div>
-                   </div>
-                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
-                     <div className="text-2xl font-bold text-emerald-600">{Object.keys(terms).length}</div>
-                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Terms</div>
-                   </div>
-                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
-                     <div className="text-2xl font-bold text-amber-600">{languages.length}</div>
-                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>Languages</div>
-                   </div>
-                   <div className={`rounded-xl p-4 text-center ${themeClasses.mutedBg}`}>
-                     <div className="text-2xl font-bold text-rose-600">
-                       {Object.values(terms).filter((t: Term) => t.status === TermStatus.New).length}
-                     </div>
-                     <div className={`text-xs font-medium ${themeClasses.mutedText}`}>New Terms</div>
-                   </div>
-</div>
-              </section>
-
-              <UpdateSettings settings={settings} />
+                <UpdateSettings settings={settings} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </Suspense>
       </main>
     </div>
   );

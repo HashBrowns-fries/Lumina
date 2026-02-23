@@ -58,7 +58,7 @@ const FloatingApp: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState<DictionaryEntry | null>(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [language, setLanguage] = useState('de');
+  const [language, setLanguage] = useState<string>('de');
   const inputRef = useRef<HTMLInputElement>(null);
   
   const [isSaving, setIsSaving] = useState(false);
@@ -163,9 +163,19 @@ const FloatingApp: React.FC = () => {
     setSaveMessage(null);
     
     try {
+      console.log('[FloatingApp] Saving term:', {
+        text: selectedResult.text,
+        language: language,
+        translation: selectedResult.translation || selectedResult.definition || '',
+        root_form: selectedResult.root_form
+      });
+      
+      // Ensure language is a string (not an object)
+      const languageId = typeof language === 'string' ? language : 'de';
+      
       const result: any = await invoke('save_term', {
         text: selectedResult.text,
-        languageId: language,
+        languageId: languageId,
         translation: selectedResult.translation || selectedResult.definition || '',
         notes: selectedResult.root_form ? `Root: ${selectedResult.root_form}` : '',
         status: 0,
@@ -175,13 +185,20 @@ const FloatingApp: React.FC = () => {
         reps: 0
       });
       
+      console.log('[FloatingApp] Save result:', result);
+      
       const savedTerms = Array.isArray(result) ? result : [result];
       
       // Also save to IndexedDB for local access
       for (const term of savedTerms) {
-        const existing = await unifiedStorage.getTermById(term.id);
-        if (!existing) {
-          await unifiedStorage.addTerm(term);
+        try {
+          const existing = await unifiedStorage.getTermById(term.id);
+          if (!existing) {
+            await unifiedStorage.addTerm(term);
+          }
+        } catch (dbErr) {
+          console.warn('[FloatingApp] IndexedDB save warning:', dbErr);
+          // Continue even if IndexedDB fails
         }
       }
       
@@ -189,7 +206,8 @@ const FloatingApp: React.FC = () => {
       setTimeout(() => setSaveMessage(null), 2000);
     } catch (err) {
       console.error('[FloatingApp] Save error:', err);
-      setSaveMessage('Failed to save');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setSaveMessage(`Failed: ${errorMsg}`);
     } finally {
       setIsSaving(false);
     }
