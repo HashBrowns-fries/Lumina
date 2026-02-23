@@ -96,28 +96,35 @@ fn start_backend_services() -> Result<String, String> {
     let python_script = base_path.join("scripts").join("enhanced_sanskrit_api.py");
 
     write_log("========== 后端服务启动 ==========");
-    write_log(&format!("基础路径: {:?}", base_path));
-    write_log(&format!("Python 脚本: {:?}", python_script));
+    write_log(&format!("基础路径：{:?}", base_path));
+    write_log(&format!("Python 脚本：{:?}", python_script));
 
-    match Command::new("python").arg("--version").output() {
-        Ok(output) => {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout);
-                write_log(&format!("✓ Python 可用: {}", version.trim()));
-            } else {
-                write_log("✗ python --version 失败");
-            }
+    // Try uv first (modern Python package manager), then fallback to python
+    let python_cmd = if Command::new("uv").arg("--version").output().is_ok() {
+        write_log("✓ uv detected (modern Python package manager)");
+        "uv"
+    } else if Command::new("python").arg("--version").output().is_ok() {
+        let output = Command::new("python").arg("--version").output().unwrap();
+        if output.status.success() {
+            let version = String::from_utf8_lossy(&output.stdout);
+            write_log(&format!("✓ Python detected: {}", version.trim()));
         }
-        Err(e) => {
-            write_log(&format!(
-                "✗ 找不到 python 命令: {}. 请安装 Python https://python.org/",
-                e
-            ));
+        "python"
+    } else if Command::new("python3").arg("--version").output().is_ok() {
+        let output = Command::new("python3").arg("--version").output().unwrap();
+        if output.status.success() {
+            let version = String::from_utf8_lossy(&output.stdout);
+            write_log(&format!("✓ Python3 detected: {}", version.trim()));
         }
-    }
+        "python3"
+    } else {
+        write_log("✗ No Python interpreter found (tried: uv, python, python3)");
+        write_log("⚠ Please install Python from https://python.org/ or https://astral.sh/uv");
+        return Err("Python not found".to_string());
+    };
 
     if python_script.exists() {
-        let child = Command::new("python")
+        let child = Command::new(python_cmd)
             .arg(&python_script)
             .current_dir(base_path.join("scripts"))
             .stdout(Stdio::piped())
@@ -125,7 +132,7 @@ fn start_backend_services() -> Result<String, String> {
             .spawn()
             .expect("Failed to start Python");
 
-        write_log(&format!("✓ Python 服务已启动 (PID: {})", child.id()));
+        write_log(&format!("✓ Python service started (PID: {})", child.id()));
 
         std::thread::spawn(move || {
             if let Ok(output) = child.wait_with_output() {
@@ -144,7 +151,7 @@ fn start_backend_services() -> Result<String, String> {
             }
         });
     } else {
-        write_log("⚠ Python 脚本不存在，梵语 API 将不可用");
+        write_log("⚠ Python script not found, Sanskrit API will be unavailable");
     }
 
     write_log("========== 后端服务启动完成 ==========");
@@ -180,6 +187,36 @@ async fn show_floating_window(app: tauri::AppHandle) -> Result<(), String> {
 async fn hide_floating_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("floating") {
         window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn toggle_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -273,6 +310,9 @@ fn main() {
             stop_backend_services,
             get_service_status,
             check_for_updates,
+            show_main_window,
+            hide_main_window,
+            toggle_main_window,
             show_floating_window,
             hide_floating_window,
             toggle_floating_window,

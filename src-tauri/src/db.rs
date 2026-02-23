@@ -48,40 +48,91 @@ pub struct LanguageInfo {
 fn get_dict_dir() -> PathBuf {
     // Try multiple locations in order:
     // 1. Executable directory (for production builds)
-    // 2. Project root (for development)
-    // 3. Current directory fallback
+    // 2. Executable _up_ directory (for bundled builds)
+    // 3. Project root (for development)
+    // 4. Current directory fallback
+
+    eprintln!("[DICT_DIR] Starting dictionary directory search...");
 
     if let Ok(exe_path) = std::env::current_exe() {
+        eprintln!("[DICT_DIR] Executable path: {:?}", exe_path);
+
         if let Some(exe_dir) = exe_path.parent() {
+            eprintln!("[DICT_DIR] Executable directory: {:?}", exe_dir);
+
             // Check exe directory
             let exe_dict = exe_dir.join("dict");
+            eprintln!("[DICT_DIR] Checking: {:?}", exe_dict);
             if exe_dict.exists() {
+                eprintln!("[DICT_DIR] ✓ Found dict in exe directory: {:?}", exe_dict);
                 return exe_dict;
+            } else {
+                eprintln!("[DICT_DIR] ✗ Not found: {:?}", exe_dict);
+            }
+
+            // Check _up_/dict directory (for bundled builds)
+            let up_dict = exe_dir.join("_up_").join("dict");
+            eprintln!("[DICT_DIR] Checking: {:?}", up_dict);
+            if up_dict.exists() {
+                eprintln!("[DICT_DIR] ✓ Found dict in _up_ directory: {:?}", up_dict);
+                return up_dict;
+            } else {
+                eprintln!("[DICT_DIR] ✗ Not found: {:?}", up_dict);
             }
 
             // Check parent directory (for development: target/debug -> project root)
             if let Some(parent) = exe_dir.parent() {
                 let parent_dict = parent.join("dict");
+                eprintln!("[DICT_DIR] Checking parent: {:?}", parent_dict);
                 if parent_dict.exists() {
+                    eprintln!(
+                        "[DICT_DIR] ✓ Found dict in parent directory: {:?}",
+                        parent_dict
+                    );
                     return parent_dict;
+                } else {
+                    eprintln!("[DICT_DIR] ✗ Not found: {:?}", parent_dict);
                 }
             }
+        } else {
+            eprintln!("[DICT_DIR] ✗ Could not get parent directory of executable");
         }
+    } else {
+        eprintln!("[DICT_DIR] ✗ Could not get executable path");
     }
 
     // Fallback to current directory
-    PathBuf::from("dict")
+    let current_dict = PathBuf::from("dict");
+    eprintln!(
+        "[DICT_DIR] Fallback to current directory: {:?}",
+        current_dict
+    );
+    if current_dict.exists() {
+        eprintln!(
+            "[DICT_DIR] ✓ Found dict in current directory: {:?}",
+            current_dict
+        );
+    } else {
+        eprintln!("[DICT_DIR] ✗ Not found in current directory either");
+    }
+
+    current_dict
 }
 
 pub fn get_connection(lang_code: &str) -> Result<Connection, String> {
+    eprintln!("[CONN] Getting connection for language: {}", lang_code);
+
     let dict_dir = get_dict_dir();
+    eprintln!("[CONN] dict_dir: {:?}", dict_dir);
 
     if !dict_dir.exists() {
+        eprintln!("[CONN] ✗ Dictionary directory does not exist");
         return Err(format!(
             "Dictionary directory not found: {}",
             dict_dir.display()
         ));
     }
+    eprintln!("[CONN] ✓ Dictionary directory exists");
 
     // Map language names to codes for directory matching
     let name_to_code = [
@@ -472,11 +523,13 @@ pub fn get_available_languages() -> Result<Vec<LanguageInfo>, String> {
     let dict_dir = get_dict_dir();
     let mut languages = Vec::new();
 
-    eprintln!("[DICT] get_dict_dir returned: {:?}", dict_dir);
-    eprintln!("[DICT] dict_dir.exists() = {}", dict_dir.exists());
+    eprintln!("[DICT] ========== get_available_languages START ==========");
+    eprintln!("[DICT] dict_dir: {:?}", dict_dir);
+    eprintln!("[DICT] dict_dir.exists(): {}", dict_dir.exists());
 
     if !dict_dir.exists() {
         eprintln!("[DICT] Directory does not exist, returning empty list");
+        eprintln!("[DICT] ========== get_available_languages END (empty) ==========");
         return Ok(languages);
     }
 
@@ -496,81 +549,101 @@ pub fn get_available_languages() -> Result<Vec<LanguageInfo>, String> {
         ("arabic", "ar"),
     ];
 
+    eprintln!("[DICT] Reading directory entries...");
     if let Ok(entries) = std::fs::read_dir(&dict_dir) {
         eprintln!("[DICT] Found entries in dict_dir");
         for entry in entries.flatten() {
             let path = entry.path();
-            eprintln!("[DICT]   Entry: {:?} (is_dir={})", path, path.is_dir());
+            eprintln!("[DICT] Checking entry: {:?}", path);
+
             if path.is_dir() {
-                let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                let dir_name_lower = dir_name.to_lowercase();
+                let dir_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
 
-                // Try to map directory name to language code
-                let lang_code = name_to_code
+                eprintln!("[DICT] Directory name: {}", dir_name);
+
+                // Check if directory name matches language code or name
+                let (lang_code, lang_name) = name_to_code
                     .iter()
-                    .find(|(name, _)| *name == dir_name_lower || *name == dir_name)
-                    .map(|(_, code)| *code)
-                    .unwrap_or(dir_name);
+                    .find(|(name, code)| dir_name == *name || dir_name == *code)
+                    .map(|(name, code)| (*code, *name))
+                    .unwrap_or((&dir_name, &dir_name));
 
-                // Support both naming conventions
-                let db_path = path.join("dictionary.db");
-                let legacy_db_path = path.join(format!("{}_dict.db", lang_code));
+                eprintln!("[DICT] Matched: code={}, name={}", lang_code, lang_name);
 
-                let actual_db_path = if db_path.exists() {
-                    eprintln!(
-                        "[DICT] Found dictionary.db for {} at {:?}",
-                        lang_code, db_path
-                    );
-                    db_path
-                } else if legacy_db_path.exists() {
-                    eprintln!(
-                        "[DICT] Found {}_dict.db for {} at {:?}",
-                        lang_code, lang_code, legacy_db_path
-                    );
-                    legacy_db_path
-                } else {
-                    eprintln!("[DICT] No dictionary found for {} in {:?}", lang_code, path);
-                    continue;
-                };
+                // Look for database files in the language directory
+                let db_files = ["{}_dict.db", "{}_dict.sqlite", "dict.db", "dict.sqlite"];
+                let mut db_path: Option<String> = None;
 
-                eprintln!("[DICT] Loading stats for {}...", lang_code);
+                for pattern in &db_files {
+                    let file_name = pattern.replace("{}", lang_code);
+                    let potential_path = path.join(&file_name);
+                    eprintln!("[DICT] Checking DB file: {:?}", potential_path);
 
-                let name = match lang_code {
-                    "de" => "German",
-                    "sa" => "Sanskrit",
-                    "en" => "English",
-                    "fr" => "French",
-                    "es" => "Spanish",
-                    "it" => "Italian",
-                    "pt" => "Portuguese",
-                    "ru" => "Russian",
-                    "zh" => "Chinese",
-                    "ja" => "Japanese",
-                    "ko" => "Korean",
-                    "ar" => "Arabic",
-                    _ => dir_name,
+                    if potential_path.exists() {
+                        db_path = Some(potential_path.to_string_lossy().to_string());
+                        eprintln!("[DICT] ✓ Found database: {:?}", potential_path);
+                        break;
+                    }
                 }
-                .to_string();
 
-                let stats = get_language_stats(lang_code).unwrap_or(DictionaryStats {
-                    word_count: 0,
-                    sense_count: 0,
-                    form_count: 0,
-                    synonym_count: 0,
-                });
+                if let Some(db) = db_path {
+                    // Get stats from database
+                    if let Ok(conn) = get_connection(lang_code) {
+                        let word_count: i64 = conn
+                            .query_row("SELECT COUNT(DISTINCT word) FROM dictionary", [], |row| {
+                                row.get(0)
+                            })
+                            .unwrap_or(0);
 
-                languages.push(LanguageInfo {
-                    code: lang_code.to_string(),
-                    name,
-                    has_local: true,
-                    word_count: stats.word_count,
-                    sense_count: stats.sense_count,
-                    form_count: stats.form_count,
-                    path: Some(actual_db_path.to_string_lossy().to_string()),
-                });
+                        let sense_count: i64 = conn
+                            .query_row("SELECT COUNT(*) FROM senses", [], |row| row.get(0))
+                            .unwrap_or(0);
+
+                        let form_count: i64 = conn
+                            .query_row("SELECT COUNT(*) FROM forms", [], |row| row.get(0))
+                            .unwrap_or(0);
+
+                        eprintln!(
+                            "[DICT] Stats for {}: words={}, senses={}, forms={}",
+                            lang_code, word_count, sense_count, form_count
+                        );
+
+                        languages.push(LanguageInfo {
+                            code: lang_code.to_string(),
+                            name: lang_name.to_string(),
+                            has_local: true,
+                            word_count,
+                            sense_count,
+                            form_count,
+                            path: Some(db),
+                        });
+                    } else {
+                        eprintln!(
+                            "[DICT] ✗ Could not open database connection for {}",
+                            lang_code
+                        );
+                    }
+                } else {
+                    eprintln!("[DICT] ✗ No database file found in {:?}", path);
+                }
             }
         }
+    } else {
+        eprintln!("[DICT] ✗ Failed to read directory entries");
     }
+
+    eprintln!("[DICT] Total languages found: {}", languages.len());
+    for lang in &languages {
+        eprintln!(
+            "[DICT]   - {} ({}): {} words, has_local={}",
+            lang.name, lang.code, lang.word_count, lang.has_local
+        );
+    }
+    eprintln!("[DICT] ========== get_available_languages END ==========");
 
     Ok(languages)
 }

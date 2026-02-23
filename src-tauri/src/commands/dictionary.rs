@@ -193,9 +193,33 @@ pub struct UploadResult {
 }
 
 fn get_dict_dir() -> PathBuf {
+    // Try multiple locations in order:
+    // 1. Executable directory
+    // 2. Executable _up_ directory (for bundled builds)
+    // 3. Parent directory (for development)
+    // 4. Current directory fallback
+
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            return exe_dir.join("dict");
+            // Check exe directory
+            let exe_dict = exe_dir.join("dict");
+            if exe_dict.exists() {
+                return exe_dict;
+            }
+
+            // Check _up_/dict directory (for bundled builds)
+            let up_dict = exe_dir.join("_up_").join("dict");
+            if up_dict.exists() {
+                return up_dict;
+            }
+
+            // Check parent directory (for development)
+            if let Some(parent) = exe_dir.parent() {
+                let parent_dict = parent.join("dict");
+                if parent_dict.exists() {
+                    return parent_dict;
+                }
+            }
         }
     }
     PathBuf::from("dict")
