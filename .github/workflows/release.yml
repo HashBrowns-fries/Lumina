@@ -6,13 +6,12 @@ on:
       - 'v*'
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
-        # 使用矩陣策略來同時在三個作業系統上執行編譯
         platform: [windows-latest, macos-latest, ubuntu-22.04]
 
     runs-on: ${{ matrix.platform }}
@@ -25,18 +24,15 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      # Linux (Ubuntu) 環境需要安裝 Tauri 依賴的系統套件
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
-      # 【已修復】使用正確的 Rust 工具鏈 Action
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # (選擇性但強烈建議) 加入 Rust 快取以加快後續的編譯速度
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -50,10 +46,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run build:tauri
 
-      # 將各平台的產物上傳到 GitHub Releases 中
-      - name: Release Assets
+      # Upload artifacts to release
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           draft: false
           prerelease: false
