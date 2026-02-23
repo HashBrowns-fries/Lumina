@@ -30,6 +30,7 @@ dict/
 src-tauri/target
 src-tauri/**/*.rs.bk
 src-tauri/Cargo.lock
+src-tauri/target/**/_up_/
 
 # Python
 __pycache__/
