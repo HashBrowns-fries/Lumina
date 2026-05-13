@@ -5,7 +5,7 @@
 > A modern desktop application for language learning with intelligent dictionary, morphology analysis, and spaced repetition system  
 > Powered by Tauri 2.0 + Rust backend
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)
 ![Backend](https://img.shields.io/badge/backend-Rust%20%2B%20Tauri-orange.svg)
 
@@ -293,7 +293,7 @@ If port 3000/3008 is in use:
 
 ## 📊 Performance
 
-Thanks to code splitting and lazy loading in v1.4.0:
+Thanks to code splitting and lazy loading in v1.5.0:
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
@@ -313,7 +313,7 @@ MIT License
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### Latest: v1.4.0
+### Latest: v1.5.0
 
 **Major Changes:**
 - ✨ Migrated to Tauri 2.0 + Rust backend (72% smaller bundle size)
@@ -341,4 +341,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
-**Lumina v1.4.0** - Built with Tauri 2.0 + Rust
+**Lumina v1.5.0** - Built with Tauri 2.0 + Rust
