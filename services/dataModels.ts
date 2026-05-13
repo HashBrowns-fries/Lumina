@@ -148,6 +148,9 @@ export const UserSettingsSchema = z.object({
   wordsPerPage: z.number().min(500).max(5000).default(1000),
   fontFamily: z.enum(['system-ui', 'serif', 'sans-serif', 'monospace', 'georgia', 'times-new-roman']).default('system-ui'),
   fontWeight: z.number().min(300).max(900).default(400),
+  bionicReadingEnabled: z.boolean().default(false),
+  bionicFixation: z.number().min(0.3).max(0.7).default(0.5),
+  bionicSaccadeInterval: z.number().min(1).max(5).default(1),
   aiConfig: AIConfigSchema.optional(),
   createdAt: z.number().default(() => Date.now()),
   updatedAt: z.number().default(() => Date.now())

@@ -15,6 +15,7 @@ const AI_PROVIDERS: { id: AIProvider; name: string; description: string; default
   { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek AI models', defaultModel: 'deepseek-chat' },
   { id: 'aliyun', name: 'Alibaba Cloud', description: 'Alibaba Cloud AI services', defaultModel: 'qwen-max' },
   { id: 'ollama', name: 'Ollama', description: 'Local Ollama instance', defaultModel: 'llama3.2' },
+  { id: 'llama-cpp', name: 'llama.cpp', description: 'Local llama.cpp server', defaultModel: 'llama3.2' },
   { id: 'qwen', name: 'Qwen', description: 'Alibaba Qwen models', defaultModel: 'qwen-max' },
   { id: 'openai', name: 'OpenAI', description: 'OpenAI API (GPT-4, GPT-3.5)', defaultModel: 'gpt-4o-mini' },
   { id: 'openai-compatible', name: 'OpenAI Compatible', description: 'Any OpenAI-compatible API', defaultModel: 'gpt-3.5-turbo' }
@@ -115,6 +116,8 @@ const AISettings: React.FC<AISettingsProps> = ({ aiConfig, onUpdate, settings })
     let baseUrl = '';
     if (provider === 'ollama') {
       baseUrl = 'http://localhost:11434/v1';
+    } else if (provider === 'llama-cpp') {
+      baseUrl = 'http://localhost:8080/v1';
     } else if (provider === 'openai') {
       baseUrl = 'https://api.openai.com/v1';
     }

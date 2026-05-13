@@ -67,13 +67,26 @@ const FloatingApp: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysisResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  const isWord = (text: string): boolean => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed.length > 100) return false;
+    return /^\p{L}+$/u.test(trimmed);
+  };
+
   useEffect(() => {
     inputRef.current?.focus();
 
     const unlisten = listen<string>('new-query', (event) => {
-      console.log('[FloatingApp] Received query:', event.payload);
-      setQuery(event.payload);
-      handleSearch(event.payload);
+      const queryText = event.payload;
+      
+      if (!isWord(queryText)) {
+        console.log('[FloatingApp] Ignored non-word:', queryText);
+        return;
+      }
+      
+      console.log('[FloatingApp] Received word:', queryText);
+      setQuery(queryText);
+      handleSearch(queryText);
     });
 
     return () => {

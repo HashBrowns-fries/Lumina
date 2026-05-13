@@ -213,7 +213,9 @@ export class UnifiedStorageService {
   }
 
   async deleteTerm(id: string): Promise<void> {
+    console.log('[UnifiedStorage] Deleting term with id:', id);
     await this.db.terms.delete(id);
+    console.log('[UnifiedStorage] Term deleted successfully');
   }
 
   async getTermsForReview(languageId: string, before: number): Promise<Term[]> {

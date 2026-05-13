@@ -227,6 +227,7 @@ RETURN JSON with the following structure:
     // 其他provider
     const baseUrl = config.baseUrl || (
       config.provider === 'ollama' ? 'http://localhost:11434/v1' :
+      config.provider === 'llama-cpp' ? 'http://localhost:8080/v1' :
       config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' :
       config.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' :
       'https://dashscope.aliyuncs.com/compatible-mode/v1'
@@ -240,7 +241,7 @@ RETURN JSON with the following structure:
     
     const apiKey = config.apiKeys?.[config.provider] || envApiKey;
     
-    if (config.provider !== 'ollama' && !apiKey) {
+    if (config.provider !== 'ollama' && config.provider !== 'llama-cpp' && !apiKey) {
       throw new Error(`${config.provider} API key is required.`);
     }
 
@@ -574,8 +575,8 @@ Return JSON.`;
       apiKeyLength: apiKey?.length || 0
     });
     
-    // Check API key for providers that require it (except Ollama which can be local)
-    if (config.provider !== 'ollama' && !apiKey) {
+    // Check API key for providers that require it (except Ollama and llama.cpp which can be local)
+    if (config.provider !== 'ollama' && config.provider !== 'llama-cpp' && !apiKey) {
       throw new Error(`${config.provider} API key is required. Please add it in Settings > AI Engine.`);
     }
 
@@ -745,6 +746,8 @@ Return JSON.`;
         errorMessage = `Network error: Cannot connect to ${config.provider} API. Check your internet connection and CORS settings.`;
         if (config.provider === 'ollama' && baseUrl.includes('localhost')) {
           errorMessage += ' Make sure Ollama is running locally at http://localhost:11434.';
+        } else if (config.provider === 'llama-cpp' && baseUrl.includes('localhost')) {
+          errorMessage += ' Make sure llama.cpp server is running locally at http://localhost:8080.';
         }
       } else if (error instanceof Error) {
         errorMessage = error.message;

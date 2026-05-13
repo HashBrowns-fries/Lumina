@@ -9,7 +9,7 @@ export enum TermStatus {
   Ignored = 99
 }
 
-export type AIProvider = 'gemini' | 'deepseek' | 'aliyun' | 'ollama' | 'qwen' | 'openai' | 'openai-compatible';
+export type AIProvider = 'gemini' | 'deepseek' | 'aliyun' | 'ollama' | 'qwen' | 'openai' | 'openai-compatible' | 'llama-cpp';
 
 export interface AIConfig {
   provider: AIProvider;

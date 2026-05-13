@@ -48,6 +48,7 @@ const VocabularyView = lazy(() => import('./components/VocabularyView'));
 const LanguageSettings = lazy(() => import('./components/LanguageSettings'));
 const AISettings = lazy(() => import('./components/AISettings'));
 const DictionarySettings = lazy(() => import('./components/DictionarySettings'));
+const DictionaryDownloadSettings = lazy(() => import('./components/DictionaryDownloadSettings'));
 const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
 const UpdateSettings = lazy(() => import('./components/UpdateSettings'));
 
@@ -200,44 +201,9 @@ const App = () => {
         console.error('[App] Initialization failed:', error);
       }
       
-      // 从 Rust 后端加载词汇
-      try {
-        console.debug('[App] Loading terms from Rust backend...');
-        const terms = await invoke('get_all_terms');
-        
-        if (terms && terms.length > 0) {
-          console.debug('[App] Syncing terms from Rust backend...');
-          
-          for (const term of terms) {
-            // 检查是否已存在
-            const existing = await unifiedStorage.getTermById(term.id);
-            if (!existing) {
-              // 添加到 IndexedDB
-              await unifiedStorage.addTerm({
-                ...term,
-                status: term.status || 0,
-                nextReview: term.nextReview || 0,
-                lastReview: term.lastReview || 0,
-                interval: term.interval || 0,
-                easeFactor: term.easeFactor || 2.5,
-                reps: term.reps || 0
-              });
-              console.debug('[App] Synced term:', term.text);
-            }
-          }
-          
-          // 重新加载词汇
-          const syncedTerms = await unifiedStorage.getAllTerms();
-          const termsRecord: Record<string, Term> = {};
-          for (const term of syncedTerms) {
-            termsRecord[term.id] = term;
-          }
-          setTerms(termsRecord);
-          console.debug('[App] Terms sync complete, total:', syncedTerms.length);
-        }
-      } catch (syncError) {
-        console.debug('[App] No terms to sync or sync failed:', syncError);
-      }
+      // 注意：不再从 Rust 后端同步词汇，因为 delete_term 命令有问题
+      // 词汇只存储在 IndexedDB 中
+      // 如果需要从 Rust 恢复词汇，请手动编辑 terms.json 文件
       
       // Listen to Tauri events for real-time term updates
       try {
@@ -390,10 +356,15 @@ const App = () => {
     console.debug('[App] handleUpdateTerm called:', { 
       term, 
       linkedChild,
-      termKey: `${term.languageId}:${term.text.toLowerCase()}` 
+      termKey: term.text ? `${term.languageId}:${term.text.toLowerCase()}` : 'unknown'
     });
     
     // 确保术语有ID
+    if (!term.text) {
+      console.error('[App] handleUpdateTerm: term.text is undefined', term);
+      return;
+    }
+    
     const termKey = `${term.languageId}:${term.text.toLowerCase()}`;
     const termWithId = { ...term, id: term.id || termKey };
     
@@ -418,7 +389,7 @@ const App = () => {
     }
     
     // 如果有关联子术语，也更新它
-    if (linkedChild) {
+    if (linkedChild && linkedChild.text) {
       const childKey = `${linkedChild.languageId}:${linkedChild.text.toLowerCase()}`;
       const childWithId = { ...linkedChild, id: linkedChild.id || childKey };
       
@@ -442,18 +413,38 @@ const App = () => {
   };
 
   const handleDeleteTerm = async (key: string) => {
+    console.log('[App] handleDeleteTerm called with key:', key);
+    
+    // 获取要删除的单词文本（用于后续检查）
+    const termToDelete = terms[key];
+    const deletedText = termToDelete?.text?.toLowerCase();
+    console.log('[App] Deleting term:', termToDelete?.text, 'id:', key);
+    
     // 从状态中删除
     setTerms(prev => {
       const updated = { ...prev };
       delete updated[key];
+      console.log('[App] Removed from state, remaining terms:', Object.keys(updated).length);
       return updated;
     });
     
-    // 从存储中删除
+    // 从 IndexedDB 存储中删除
     try {
       await unifiedStorage.deleteTerm(key);
+      console.log('[App] Deleted from IndexedDB successfully');
     } catch (error) {
-      console.error('Failed to delete term from storage:', error);
+      console.error('[App] Failed to delete term from IndexedDB:', error);
+    }
+    
+    // 检查词库中是否还有相同文本的单词（从当前状态中过滤）
+    // 注意：由于已经从状态中删除，remainingTerms 应该为空
+    if (deletedText) {
+      const remainingAfterDelete = Object.values({...terms}).filter(
+        t => t.text?.toLowerCase() === deletedText && t.id !== key
+      );
+      if (remainingAfterDelete.length === 0) {
+        console.log('[App] Term removed from vocabulary:', deletedText);
+      }
     }
   };
 
@@ -740,16 +731,20 @@ const App = () => {
               terms={terms}
               onUpdateTerm={handleUpdateTerm}
               onDeleteTerm={handleDeleteTerm}
-              onSave={(term) => {
+              onSave={(term, reason?: string) => {
+                const saveReason = reason || 'manual';
+                console.log('[App] Adding term to vocabulary:', term.text, 'id:', term.id, 'reason:', saveReason);
                 // Add term to state
                 setTerms(prev => ({ ...prev, [term.id]: term }));
                 // Save to storage
                 unifiedStorage.addTerm(term).catch(err => {
-                  console.error('Failed to save term to storage:', err);
+                  console.error('[App] Failed to save term to storage:', err);
                 });
+                console.log('[App] Term added successfully:', term.text);
               }}
               aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
               settings={settings}
+              onUpdateSettings={handleUpdateSettings}
               onClose={() => setView('library')}
             />
           )}
@@ -777,7 +772,9 @@ const App = () => {
                 />
                
                 <DictionarySettings settings={settings} />
-               
+
+                <DictionaryDownloadSettings settings={settings} />
+
                <AppearanceSettings
                  settings={settings}
                  onUpdate={handleUpdateSettings}

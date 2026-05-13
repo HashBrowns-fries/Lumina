@@ -2,12 +2,16 @@
 // @ts-nocheck
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, Link as LinkIcon, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { formatBionicWord, renderBionicWord, isWord } from '../src/utils/bionicReading';
 import { Text, Term, TermStatus, Language, AIConfig, GeminiSuggestion, UserSettings } from '../types';
 import TermSidebar from './TermSidebar';
 import { getLargeTextContent } from '../services/fileStorage';
 import { analyzeTerm } from '../services/llmService';
 import { getDocument, getDocumentChapters, loadChapter, getReadingProgress, saveReadingProgress } from '../services/documentStorage';
 import { StoredChapter } from '../services/storageService';
+import EyeTrackerPanel from './EyeTrackerPanel';
+import ReadingHeatmap from './ReadingHeatmap';
+import { GazeData, eyeTrackingService } from '../services/eyeTrackingService';
 
 interface SelectionState {
   indices: number[];
@@ -55,6 +59,52 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const saveProgressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 眼动追踪状态
+  const [eyeTrackerExpanded, setEyeTrackerExpanded] = useState(false);
+  const [eyeTrackingEnabled, setEyeTrackingEnabled] = useState(false);
+  const [gazeData, setGazeData] = useState<GazeData | null>(null);
+  const [focusedLineY, setFocusedLineY] = useState<number | null>(null);
+
+  // 自动启动眼动追踪
+  useEffect(() => {
+    const autoStart = eyeTrackingService.getAutoStart();
+    if (autoStart && !eyeTrackingEnabled) {
+      const startGaze = async () => {
+        const screenWidth = window.screen.width;
+        const screenHeight = window.screen.height;
+        const success = await eyeTrackingService.startAndCalibrate(screenWidth, screenHeight);
+        if (success) {
+          setEyeTrackingEnabled(true);
+          setEyeTrackerExpanded(true);
+        }
+      };
+      startGaze();
+    }
+  }, []);
+  
+  // 每10秒更新一次focused line
+  useEffect(() => {
+    if (!eyeTrackingEnabled || !gazeData?.valid || !scrollRef.current) return;
+    
+    const updateFocusedLine = () => {
+      const containerRect = scrollRef.current.getBoundingClientRect();
+      const relativeY = gazeData.y - containerRect.top + scrollRef.current.scrollTop;
+      const lineHeight = 32;
+      const firstLineY = 32;
+      const currentLine = Math.max(0, Math.floor((relativeY - firstLineY) / lineHeight));
+      setFocusedLineY(firstLineY + currentLine * lineHeight);
+    };
+    
+    // 立即更新一次
+    updateFocusedLine();
+    
+    // 每10秒更新一次
+    const interval = setInterval(updateFocusedLine, 10000);
+    return () => clearInterval(interval);
+  }, [eyeTrackingEnabled, gazeData?.valid]);
+  // 双击保存相关
+  const lastDoubleClickRef = useRef<{ time: number; wordIndex: number } | null>(null);
+  const DOUBLE_CLICK_INTERVAL_MS = 800;
 
   useEffect(() => {
     const load = async () => {
@@ -474,32 +524,68 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   };
 
   const handleWordDoubleClick = (wordIndex: number) => {
-    // Only save if autoSaveOnClick is enabled and onSave handler exists
-    if (!settings?.autoSaveOnClick || !onSave) return;
+    // 双击保存功能 - 不依赖任何设置
+    console.log('[Reader] Double-click detected, onSave exists:', !!onSave);
+    
+    if (!onSave) {
+      console.log('[Reader] No save handler, skipping');
+      return;
+    }
+    
+    const now = Date.now();
+    const lastClick = lastDoubleClickRef.current;
+    const timeDiff = lastClick ? now - lastClick.time : null;
+    
+    console.log('[Reader] Double-click check:', { 
+      lastClick, 
+      wordIndex, 
+      now, 
+      timeDiff,
+      interval: DOUBLE_CLICK_INTERVAL_MS,
+      condition1: !!lastClick,
+      condition2: lastClick?.wordIndex === wordIndex,
+      condition3: timeDiff !== null && timeDiff < DOUBLE_CLICK_INTERVAL_MS
+    });
+    
+    // 检查双击间隔：同一单词双击间隔小于 500ms 才触发保存
+    if (lastClick && lastClick.wordIndex === wordIndex && timeDiff !== null && timeDiff < DOUBLE_CLICK_INTERVAL_MS) {
+      console.log('[Reader] Valid double-click detected, saving word');
+      // 这是有效的双击，继续处理
+    } else {
+      // 第一次点击或不同单词，只记录不保存
+      lastDoubleClickRef.current = { time: now, wordIndex };
+      console.log('[Reader] First click of double-click, waiting...');
+      return;
+    }
     
     const word = allWords[wordIndex];
-    if (!word || !isWord(word)) return;
+    console.log('[Reader] Word at index:', word, 'isWord:', isWord(word || ''));
+    if (!word || !isWord(word)) {
+      console.log('[Reader] Not a valid word, skipping');
+      return;
+    }
     
     // Check if term already exists
     const wordLower = word.toLowerCase();
+    console.log('[Reader] Checking if term exists:', wordLower, 'language:', language.id);
     const existingTermKey = Object.keys(terms).find(key => {
       const term = terms[key];
       return term && term.languageId === language.id && term.text.toLowerCase() === wordLower;
     });
     
     if (existingTermKey) {
-      console.log('[Reader] Term already exists, skipping auto-save:', word);
+      console.log('[Reader] Term already exists:', existingTermKey, 'skipping save');
       return;
     }
     
     // Auto-save the word
-    console.log('[Reader] Auto-saving word:', word);
+    console.log('[Reader] Saving word:', word);
     const newTerm: Term = {
       id: `${language.id}:${wordLower}:${Date.now()}`,
       text: word,
       languageId: language.id,
       translation: '',
-      status: TermStatus.New,
+      status: TermStatus.Learning1,
       notes: '',
       nextReview: Date.now() + 24 * 60 * 60 * 1000,
       interval: 0,
@@ -508,7 +594,11 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
     };
     
     // Save via parent handler
-    onSave(newTerm);
+    onSave(newTerm, 'double-click save');
+    console.log('[Reader] onSave called successfully');
+    
+    // 重置双击状态
+    lastDoubleClickRef.current = null;
   };
 
   const getTermStyles = (token: string, idx: number) => {
@@ -545,8 +635,6 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
       default: return baseStyles + "hover:bg-indigo-50";
     }
   };
-
-  const isWord = (token: string) => /\p{L}+/u.test(token);
 
   const selectedText = useMemo(() => {
     if (!selection) return "";
@@ -854,14 +942,76 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   const sidebarContentWidth = sidebarWidth !== null ? sidebarWidth : defaultSidebarWidth;
 
   return (
-     <div className={`flex-1 flex h-full overflow-hidden ${
+    <>
+      <EyeTrackerPanel
+        isExpanded={eyeTrackerExpanded}
+        onToggle={() => setEyeTrackerExpanded(!eyeTrackerExpanded)}
+        theme={settings.theme}
+        onGazeUpdate={setGazeData}
+        onTrackingStarted={() => setEyeTrackingEnabled(true)}
+        onTrackingStopped={() => setEyeTrackingEnabled(false)}
+      />
+      
+      {/* 视线高亮指示器 & 行高亮 */}
+      {eyeTrackingEnabled && gazeData?.valid && scrollRef.current && focusedLineY !== null && (
+        (() => {
+          const containerRect = scrollRef.current.getBoundingClientRect();
+          const lineHeight = 32;
+          
+          return (
+            <>
+              {/* 行高亮 - 使用focusedLineY，每10秒更新一次 */}
+              <div
+                className="pointer-events-none z-[9998]"
+                style={{
+                  position: 'absolute',
+                  left: `${containerRect.left}px`,
+                  top: `${containerRect.top + scrollRef.current.scrollTop + focusedLineY}px`,
+                  width: `${containerRect.width}px`,
+                  height: `${lineHeight * 3}px`,
+                  backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                  borderLeft: '4px solid rgba(99, 102, 241, 0.8)',
+                }}
+              />
+              {/* 视线圆点 */}
+              <div
+                className="pointer-events-none z-[9999]"
+                style={{
+                  position: 'fixed',
+                  left: `${gazeData.x}px`,
+                  top: `${gazeData.y}px`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(99, 102, 241, 0.9)',
+                  boxShadow: '0 0 10px rgba(99, 102, 241, 0.8)'
+                }} />
+              </div>
+            </>
+          );
+        })()
+      )}
+      
+      <ReadingHeatmap
+        gazeData={gazeData}
+        isEnabled={eyeTrackingEnabled}
+        containerRef={scrollRef}
+        totalPages={pages.length}
+        currentPage={currentPageIndex}
+        theme={settings.theme}
+      />
+      <div className={`flex-1 flex h-full overflow-hidden ${
        settings.theme === 'dark' ? 'bg-slate-900' :
        settings.theme === 'night' ? 'bg-indigo-950' :
        settings.theme === 'contrast' ? 'bg-black' :
        settings.theme === 'sepia' ? 'bg-amber-50' :
        settings.theme === 'paper' ? 'bg-stone-50' :
        'bg-white'
-     }`}>
+      }`}>
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
@@ -949,25 +1099,24 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                    : `${Math.round((text.progress || 0) * 100)}% progress`}
                </span>
              </div>
-           </header>
+            </header>
 
-              <div 
-                className="selection:bg-indigo-100 selection:text-indigo-900 space-y-6"
-                style={{
-                  fontSize: `${settings.fontSize}px`,
-                  lineHeight: settings.lineHeight,
-                  fontFamily: settings.fontFamily === 'system-ui' ? 'inherit' : settings.fontFamily,
-                  fontWeight: settings.fontWeight,
-                  color: settings.theme === 'dark' ? '#f1f5f9' :
-                         settings.theme === 'night' ? '#e0e7ff' :
-                         settings.theme === 'contrast' ? '#ffffff' :
-                         settings.theme === 'sepia' ? '#78350f' :
-                         settings.theme === 'paper' ? '#292524' :
-                         '#1e293b' // light, auto, default
-                }}
-              >
-               {/* 按段落渲染内容 */}
-               {(() => {
+            <div 
+              className="selection:bg-indigo-100 selection:text-indigo-900 space-y-6"
+              style={{
+                fontSize: `${settings.fontSize}px`,
+                lineHeight: settings.lineHeight,
+                fontFamily: settings.fontFamily === 'system-ui' ? 'inherit' : settings.fontFamily,
+                fontWeight: settings.fontWeight,
+                color: settings.theme === 'dark' ? '#f1f5f9' :
+                       settings.theme === 'night' ? '#e0e7ff' :
+                       settings.theme === 'contrast' ? '#ffffff' :
+                       settings.theme === 'sepia' ? '#78350f' :
+                       settings.theme === 'paper' ? '#292524' :
+                       '#1e293b'
+              }}
+            >
+              {(() => {
                  // 计算当前页面的全局词索引范围
                  const pageStartIndex = currentPageIndex * WORDS_PER_PAGE;
                  const pageEndIndex = Math.min(pageStartIndex + WORDS_PER_PAGE, allWords.length);
@@ -1000,25 +1149,43 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                    wordAccumulator += paragraph.length;
                  }
                  
-                 return visibleParagraphs.map((para, paraIdx) => (
-                   <p key={paraIdx} className="mb-6 last:mb-0">
-                     {para.words.map((word, wordIdx) => {
-                       const globalWordIndex = para.startIndex + wordIdx;
-                       const wordDetected = isWord(word);
-                       if (!wordDetected) return <span key={wordIdx} className="text-slate-300 whitespace-pre-wrap">{word}</span>;
-                       return (
-                          <span 
-                            key={wordIdx}
-                            onClick={() => handleWordClick(globalWordIndex)}
-                            onDoubleClick={() => handleWordDoubleClick(globalWordIndex)}
-                            className={getTermStyles(word, globalWordIndex)}
-                          >
-                            {word}{' '}
-                          </span>
-                       );
-                     })}
-                   </p>
-                 ));
+                  return visibleParagraphs.map((para, paraIdx) => (
+                    <p key={paraIdx} className="mb-6 last:mb-0">
+                       {para.words.map((word, wordIdx) => {
+                        const globalWordIndex = para.startIndex + wordIdx;
+                        const wordDetected = isWord(word);
+                        if (!wordDetected) return <span key={wordIdx} className="text-slate-300 whitespace-pre-wrap">{word}</span>;
+                        
+                        const termStyles = getTermStyles(word, globalWordIndex);
+                        const baseClassName = termStyles;
+                        
+                        if (settings.bionicReadingEnabled) {
+                          return (
+                            <span key={wordIdx}>
+                              {renderBionicWord(
+                                word,
+                                settings.bionicFixation,
+                                baseClassName,
+                                () => handleWordClick(globalWordIndex),
+                                () => handleWordDoubleClick(globalWordIndex)
+                              )}
+                            </span>
+                          );
+                        }
+                        
+                        return (
+                           <span 
+                             key={wordIdx}
+                             onClick={() => handleWordClick(globalWordIndex)}
+                             onDoubleClick={() => handleWordDoubleClick(globalWordIndex)}
+                             className={baseClassName}
+                           >
+                             {word}{' '}
+                           </span>
+                        );
+                      })}
+                    </p>
+                  ));
                })()}
                
                {/* 分页导航 */}
@@ -1094,26 +1261,26 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                            'bg-slate-50 border-slate-200 text-slate-700'
                          }`}
                        >
-                        {pages.map((_, idx) => (
-                          <option key={idx} value={idx}>
-                            Page {idx + 1}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                         {pages.map((_, idx) => (
+                            <option key={idx} value={idx}>
+                              Page {idx + 1}
+                            </option>
+                          ))}
+                        </select>
+                       </div>
+                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="h-48" />
             </div>
-           <div className="h-48" />
-        </div>
-       </div>
+          </div>
 
-        {/* 拖拽调整宽度句柄 */}
-        <div 
-          className="w-2 cursor-ew-resize hover:bg-indigo-200/50 active:bg-indigo-300/70 transition-colors z-20"
-          onMouseDown={startResizing}
-        />
+          {/* 拖拽调整宽度句柄 */}
+          <div 
+            className="w-2 cursor-ew-resize hover:bg-indigo-200/50 active:bg-indigo-300/70 transition-colors z-20"
+            onMouseDown={startResizing}
+          />
 
         {/* 浮动翻页控件 */}
         <div className={`fixed bottom-8 z-30 flex items-center gap-3 backdrop-blur-sm border rounded-2xl px-4 py-3 shadow-xl ${
@@ -1243,7 +1410,9 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         )}
       </aside>
     </div>
+    </>
   );
 };
 
 export default Reader;
+

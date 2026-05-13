@@ -21,6 +21,7 @@ use commands::{dictionary::*, sanskrit::*, vocabulary::*};
 struct AppState {
     floating_manager: Mutex<Option<FloatingWindowManager>>,
     clipboard_monitoring: Mutex<Arc<AtomicBool>>,
+    vocabulary_state: VocabularyState,
 }
 
 fn get_log_path() -> PathBuf {
@@ -164,6 +165,21 @@ fn stop_backend_services() -> Result<String, String> {
     Ok("服务已停止".to_string())
 }
 
+/// 简单单词检查：判断文本是否可能是有效单词
+/// 规则：
+/// 1. 不能为空
+/// 2. 长度不超过 100 字符
+/// 3. 只包含字母字符（支持 Unicode，包括 CJK 字符）
+/// 4. 不包含空格、标点、数字等特殊字符
+fn is_likely_word(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.len() > 100 {
+        return false;
+    }
+    // 检查是否所有字符都是字母（Unicode 感知）
+    trimmed.chars().all(|c| c.is_alphabetic())
+}
+
 #[tauri::command]
 fn get_service_status() -> Result<String, String> {
     Ok("运行中".to_string())
@@ -257,12 +273,25 @@ async fn start_clipboard_monitor(app: tauri::AppHandle, state: tauri::State<'_, 
     let app_handle = app.clone();
     thread::spawn(move || {
         let mut last_clipboard = String::new();
+        let mut last_ignored_log = String::new();
         
         while monitoring.load(Ordering::SeqCst) {
             if let Ok(text) = app_handle.clipboard().read_text() {
                 if !text.is_empty() && text != last_clipboard && text.len() < 200 {
+                    // 单词检查：只处理有效单词
+                    if !is_likely_word(&text) {
+                        // 只在剪贴板内容变化时记录一次日志
+                        if text != last_ignored_log {
+                            write_log(&format!("[Clipboard] Ignored non-word: '{}'", text));
+                            last_ignored_log = text.clone();
+                        }
+                        thread::sleep(Duration::from_millis(800));
+                        continue;
+                    }
+                    
                     last_clipboard = text.clone();
-                    write_log(&format!("[Clipboard] Detected: {}", text));
+                    last_ignored_log = String::new();
+                    write_log(&format!("[Clipboard] Detected word: '{}'", text));
                     
                     if let Some(window) = app_handle.get_webview_window("floating") {
                         let _ = window.show();
@@ -300,11 +329,13 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .manage(AppState {
+        .manage(|app: &tauri::AppHandle| AppState {
             floating_manager: Mutex::new(None),
             clipboard_monitoring: Mutex::new(Arc::new(AtomicBool::new(false))),
+            vocabulary_state: VocabularyState { 
+                terms_path: Mutex::new(app.path().app_data_dir().unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))).join("data").join("terms.json"))
+            },
         })
-        .manage(|app: &tauri::AppHandle| init_vocabulary_state(app))
         .invoke_handler(tauri::generate_handler![
             start_backend_services,
             stop_backend_services,
@@ -432,13 +463,26 @@ fn main() {
                     monitoring.store(true, Ordering::SeqCst);
                     
                     let mut last_clipboard = String::new();
+                    let mut last_ignored_log = String::new();
                     write_log("[Clipboard] Starting clipboard monitor...");
                     
                     while monitoring.load(Ordering::SeqCst) {
                         if let Ok(text) = app_handle_for_clipboard.clipboard().read_text() {
                             if !text.is_empty() && text != last_clipboard && text.len() < 200 {
+                                // 单词检查：只处理有效单词
+                                if !is_likely_word(&text) {
+                                    // 只在剪贴板内容变化时记录一次日志
+                                    if text != last_ignored_log {
+                                        write_log(&format!("[Clipboard] Ignored non-word: '{}'", text));
+                                        last_ignored_log = text.clone();
+                                    }
+                                    std::thread::sleep(Duration::from_millis(800));
+                                    continue;
+                                }
+                                
                                 last_clipboard = text.clone();
-                                write_log(&format!("[Clipboard] Detected: {}", text));
+                                last_ignored_log = String::new();
+                                write_log(&format!("[Clipboard] Detected word: '{}'", text));
                                 
                                 if let Some(window) = app_handle_for_clipboard.get_webview_window("floating") {
                                     let _ = window.show();

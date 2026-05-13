@@ -652,7 +652,9 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
     }
   }, [aiSuggestion, word, language.id, existingTerm?.translation]);
 
-  // Auto-save on click if enabled
+  // Auto-save 功能已禁用 - 只保留双击保存
+  // 如果需要启用自动保存，取消下面的注释
+  /*
   useEffect(() => {
     if (!settings?.autoSaveOnClick || existingTerm || autoSavedRef.current) return;
     // Don't auto-save when AI suggestion is received (user should manually save after AI analysis)
@@ -671,11 +673,12 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
         nextReview: formData.nextReview,
         reps: formData.reps || 0,
       };
-      onSave(termToSave);
+      onSave(termToSave, 'auto-save from sidebar');
       autoSavedRef.current = true;
       console.debug('[TermSidebar] Auto-saved term:', termToSave.text);
     }
   }, [settings?.autoSaveOnClick, existingTerm, formData.translation, formData.text, formData.status, formData.notes, formData.image, formData.parentId, formData.nextReview, formData.reps, wiktionaryData, aiSuggestion, word, language.id, onSave]);
+  */
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -724,7 +727,7 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
       return;
     }
     
-    onSave(mainTerm, childTerm);
+    onSave(mainTerm, 'form submit');
   };
 
   const parentTerm = formData.parentId ? allTerms[formData.parentId] : null;

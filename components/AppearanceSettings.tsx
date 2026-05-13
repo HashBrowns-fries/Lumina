@@ -1,7 +1,8 @@
 // @ts-nocheck
 import React from 'react';
-import { Palette, Type, Maximize2, Sun, Moon, Eye, Contrast, Book, Zap } from 'lucide-react';
+import { Palette, Type, Maximize2, Sun, Moon, Eye, Contrast, Book, Zap, EyeOff } from 'lucide-react';
 import { UserSettings } from '../services/dataModels';
+import { formatBionicWord, isWord } from '../src/utils/bionicReading';
 
 interface AppearanceSettingsProps {
   settings: UserSettings;
@@ -298,6 +299,147 @@ const AppearanceSettings: React.FC<AppearanceSettingsProps> = ({ settings, onUpd
             </p>
           </div>
         </div>
+      </section>
+
+      {/* Bionic Reading 设置 */}
+      <section className={`border-0 rounded-2xl p-6 shadow-lg ${themeClasses.cardBg}`}>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 bg-gradient-to-br from-amber-400 to-orange-500 text-white rounded-xl shadow-sm">
+            <Eye size={20} />
+          </div>
+          <div>
+            <h2 className={`text-lg font-bold ${themeClasses.text}`}>Bionic Reading</h2>
+            <p className={`text-xs font-medium ${themeClasses.mutedText}`}>
+              ADHD-friendly reading mode with bolded word prefixes
+            </p>
+          </div>
+        </div>
+
+        {/* 启用开关 */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <span className={`font-medium ${themeClasses.text}`}>Enable Bionic Reading</span>
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              settings.bionicReadingEnabled 
+                ? 'bg-amber-100 text-amber-700' 
+                : 'bg-slate-100 text-slate-500'
+            }`}>
+              {settings.bionicReadingEnabled ? 'Active' : 'Off'}
+            </span>
+          </div>
+          <button
+            onClick={() => onUpdate({ bionicReadingEnabled: !settings.bionicReadingEnabled })}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              settings.bionicReadingEnabled ? 'bg-amber-500' : 'bg-slate-300'
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              settings.bionicReadingEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+
+        {settings.bionicReadingEnabled && (
+          <>
+            {/* Fixation 强度 */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className={themeClasses.mutedText} />
+                  <span className={`font-medium ${themeClasses.text}`}>Fixation (Intensity)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0.3"
+                    max="0.7"
+                    step="0.1"
+                    value={settings.bionicFixation}
+                    onChange={(e) => onUpdate({ bionicFixation: parseFloat(e.target.value) })}
+                    className="w-32 accent-amber-500"
+                  />
+                  <span className={`w-16 text-center text-sm font-bold ${themeClasses.text}`}>
+                    {settings.bionicFixation < 0.4 ? 'Low' : settings.bionicFixation > 0.6 ? 'High' : 'Medium'}
+                  </span>
+                </div>
+              </div>
+              <div className={`text-xs ${themeClasses.mutedText} ml-6`}>
+                Controls how many letters are bolded. Higher = stronger visual anchoring.
+              </div>
+            </div>
+
+            {/* Saccade 间隔 */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <EyeOff size={16} className={themeClasses.mutedText} />
+                  <span className={`font-medium ${themeClasses.text}`}>Saccade (Interval)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="1"
+                    value={settings.bionicSaccadeInterval}
+                    onChange={(e) => onUpdate({ bionicSaccadeInterval: parseInt(e.target.value) })}
+                    className="w-32 accent-amber-500"
+                  />
+                  <span className={`w-24 text-center text-sm font-bold ${themeClasses.text}`}>
+                    {settings.bionicSaccadeInterval === 1 
+                      ? 'Every word' 
+                      : `Every ${settings.bionicSaccadeInterval}th word`}
+                  </span>
+                </div>
+              </div>
+              <div className={`text-xs ${themeClasses.mutedText} ml-6`}>
+                Controls how often words are bolded. Higher = fewer bold words.
+              </div>
+            </div>
+
+            {/* 预览区域 */}
+            <div className={`mt-6 pt-6 border-t ${themeClasses.border}`}>
+              <h3 className={`text-sm font-bold mb-3 ${themeClasses.text}`}>Preview</h3>
+              <div 
+                className={`p-4 rounded-xl border ${themeClasses.mutedBg} ${themeClasses.border}`}
+                style={{
+                  fontSize: `${settings.fontSize}px`,
+                  lineHeight: settings.lineHeight,
+                  fontFamily: settings.fontFamily === 'system-ui' ? 'inherit' : settings.fontFamily,
+                  fontWeight: settings.fontWeight,
+                }}
+              >
+                {(() => {
+                  const sampleText = "The quick brown fox jumps over the lazy dog";
+                  const words = sampleText.split(/\s+/);
+                  let wordIndex = 0;
+                  
+                  return (
+                    <p>
+                      {words.map((word, idx) => {
+                        if (isWord(word)) {
+                          wordIndex++;
+                          const shouldBold = (wordIndex - 1) % settings.bionicSaccadeInterval === 0;
+                          if (shouldBold) {
+                            return <span key={idx} dangerouslySetInnerHTML={{ __html: formatBionicWord(word, settings.bionicFixation) }} />;
+                          }
+                        }
+                        return <span key={idx}>{word}</span>;
+                      }).reduce((prev: React.ReactNode[], curr, idx) => {
+                        if (idx > 0) prev.push(' ');
+                        prev.push(curr);
+                        return prev;
+                      }, [])}
+                    </p>
+                  );
+                })()}
+                <p className={`text-xs mt-3 ${themeClasses.mutedText}`}>
+                  Sample: "{settings.bionicFixation < 0.4 ? 'Low' : settings.bionicFixation > 0.6 ? 'High' : 'Medium'}" intensity, "{settings.bionicSaccadeInterval === 1 ? 'Every word' : `Every ${settings.bionicSaccadeInterval}th word`}"
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
