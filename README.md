@@ -1,5 +1,7 @@
 # 🌟 Lumina - Intelligent Language Learning App
 
+<img src="src-tauri/icons/icon.png" width="128" height="128" align="right" />
+
 > A modern desktop application for language learning with intelligent dictionary, morphology analysis, and spaced repetition system  
 > Powered by Tauri 2.0 + Rust backend
 
