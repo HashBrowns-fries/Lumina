@@ -9,6 +9,8 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)
 ![Backend](https://img.shields.io/badge/backend-Rust%20%2B%20Tauri-orange.svg)
 
+[中文版](README_zh.md)
+
 ---
 
 ## 📥 Download & Install
