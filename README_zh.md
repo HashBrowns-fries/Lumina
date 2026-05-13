@@ -17,7 +17,7 @@
 
 从以下地址下载最新安装包：
 
-**https://github.com/HashBrowns-fries/Lumina/releases**
+**[Lumina Releases](https://github.com/HashBrowns-fries/Lumina/releases)**
 
 | 平台 | 安装包 | 安装方式 |
 |------|--------|----------|
