@@ -5,9 +5,11 @@
 > 一款现代化的桌面语言学习应用，集成智能词典、形态分析和间隔重复系统
 > 基于 Tauri 2.0 + Rust 后端
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)
 ![Backend](https://img.shields.io/badge/backend-Rust%20%2B%20Tauri-orange.svg)
+
+[English](README.md)
 
 ---
 
@@ -34,7 +36,7 @@
 - **Windows 10/11**（需要 WebView2，大多数系统已预装）
 - **macOS 10.15+**
 - **Linux**：需要 WebKit2GTK
-- **Python 3.8+**（可选，用于梵语 API）
+- **Python 3.8+**（可选，用于梵语 API / 日语分词器 / 词典下载）
 
 ---
 
@@ -49,11 +51,18 @@
 - **精确查询**：精确匹配，无模糊匹配
 - **双击保存**：双击快速保存单词到词汇本（可在设置中切换）
 
+### 🇯🇵 日语专属支持
+
+- **专属显示**：日语专用词典卡片，含读音、动词类型、活用表
+- **假名读音**：4 层读音提取（假名词形 → 罗马字转换 → 释义解析）
+- **活用形表**：三列显示（漢字 / かな / Romaji），按活用类型分组
+- **nagisa 分词器**：日语形态分析与词性标注（自动启动，端口 3010）
+
 ### 🤖 AI 增强学习
 
 - **语法分析**：AI 驱动的详细语法解析
 - **上下文感知翻译**：智能翻译与建议
-- **多 AI 提供商**：Google Gemini、DeepSeek、阿里 Qwen、Ollama
+- **多 AI 提供商**：Google Gemini、DeepSeek、阿里 Qwen、OpenAI、MiniMax、Ollama
 
 ### 🔄 间隔重复系统
 
@@ -97,7 +106,10 @@ cp .env.example .env
 | DeepSeek | DeepSeek AI | ✅ |
 | 阿里 Qwen | 阿里云 | ✅ |
 | OpenAI | GPT 模型 | ✅ |
+| MiniMax | MiniMax AI（MiniMax-Text-01） | ✅ |
 | Ollama | 本地部署 | ❌（免费） |
+| llama.cpp | 本地 llama.cpp 服务器 | ❌（免费） |
+| OpenAI 兼容 | 任何 OpenAI 兼容 API | 视情况 |
 
 ### 环境变量
 
@@ -112,6 +124,7 @@ cp .env.example .env
 # - DEEPSEEK_API_KEY
 # - ALIYUN_API_KEY
 # - OPENAI_API_KEY（可选）
+# - MINIMAX_API_KEY（可选）
 # - OLLAMA_BASE_URL（用于本地 AI）
 ```
 
@@ -159,7 +172,7 @@ dict/
 
 - **Node.js 18+**：[下载](https://nodejs.org/)
 - **Rust**（用于 Tauri 桌面应用）：[通过 rustup 安装](https://rustup.rs/)
-- **Python 3.8+**（可选，用于梵语 API）
+- **Python 3.8+**（可选，用于梵语 API / 日语分词器 / 词典下载）
   - 或使用 **uv**（现代化 Python 包管理器）：[安装](https://astral.sh/uv)
 
 ### 本地开发
@@ -181,7 +194,9 @@ npm run dev:sanskrit-api
 
 这将启动：
 - 前端：http://localhost:3000
-- 梵语 API：http://localhost:3008（可选）
+- 梵语 API：http://localhost:3008（Tauri 自动启动）
+- nagisa 日语分词器：http://localhost:3010（Tauri 自动启动）
+- 词典下载 API：http://localhost:3011（Tauri 自动启动）
 
 ### 构建桌面应用
 
@@ -216,10 +231,16 @@ Lumina/
 │   └── Cargo.toml          # Rust 依赖
 ├── src/                    # React + TypeScript 前端
 ├── components/             # React 组件
+│   ├── JapaneseWordDisplay.tsx  # 日语专属词典显示
+│   └── ...
 ├── services/               # 前端服务
-├── scripts/                # Python 脚本（梵语 API）
-│   ├── enhanced_sanskrit_api.py
-│   ├── sandhi_api.py
+│   ├── nagisaService.ts    # nagisa 分词器客户端
+│   └── ...
+├── scripts/                # Python 脚本（后端服务）
+│   ├── enhanced_sanskrit_api.py  # 梵语 API（端口 3008）
+│   ├── nagisa_api.py             # 日语分词器（端口 3010）
+│   ├── dictionary_download_api.py # 词典下载（端口 3011）
+│   ├── convert_jsonl_to_sqlite.py # Kaikki JSONL → SQLite 转换器
 │   └── manage_dictionaries.py
 ├── dict/                   # 词典数据库（Kaikki 格式）
 ├── data/                   # 静态数据文件
@@ -287,9 +308,17 @@ rustup default stable
 
 ### 端口冲突
 
-如果端口 3000/3008 被占用：
+如果端口 3000/3008/3010/3011 被占用：
 - Windows：`netstat -ano | findstr "3000"`
 - 终止进程或更改配置中的端口
+
+**默认端口：**
+| 端口 | 服务 |
+|------|------|
+| 3000 | Vite 开发服务器（前端） |
+| 3008 | 梵语语法 API |
+| 3010 | nagisa 日语分词器 |
+| 3011 | 词典下载 API |
 
 ---
 
@@ -315,13 +344,26 @@ MIT 许可证
 
 详细版本历史请参阅 [CHANGELOG.md](CHANGELOG.md)。
 
-### 最新：v1.5.0
+### 最新：v1.6.0
 
 **主要更新：**
-- ✨ 添加词典下载页面（Kaikki.org 21 种语言）
-- 🎯 新增视线追踪和双视阅读功能
-- 🚀 更新的外观设置与新主题选项
-- 🐛 各种错误修复
+- 🇯🇵 日语专属词典显示：读音、活用形表、动词类型检测
+- 🔤 nagisa 日语分词器集成（形态分析 + 词性标注）
+- 🤖 新增 MiniMax AI 提供商支持
+- 📚 通过 Python API 下载词典（Kaikki.org 英文维基词典子集，20+ 种语言）
+- 🏗️ 统一后端架构 — 所有词典查询通过 HTTP API
+- 🐛 修复日语阅读器一词一行的渲染 bug
+
+### v1.5.0
+
+- ✨ 迁移至 Tauri 2.0 + Rust 后端（包体积缩小 72%）
+- 🚀 双击保存单词到词汇本
+- 🔧 修复打包构建的词典路径检测
+- 🐍 支持 uv（现代 Python 包管理器）
+- 📝 API 密钥通过 .env 文件配置
+- 🎨 改进浮动窗口 UI 和保存功能
+- 🔍 增强词典查询精度
+- 📦 代码分割和懒加载加快首次加载
 
 ---
 
@@ -333,4 +375,4 @@ MIT 许可证
 
 ---
 
-**Lumina v1.5.0** - 基于 Tauri 2.0 + Rust 构建
+**Lumina v1.6.0** - 基于 Tauri 2.0 + Rust 构建

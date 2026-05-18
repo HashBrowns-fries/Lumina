@@ -12,6 +12,9 @@ import { StoredChapter } from '../services/storageService';
 import EyeTrackerPanel from './EyeTrackerPanel';
 import ReadingHeatmap from './ReadingHeatmap';
 import { GazeData, eyeTrackingService } from '../services/eyeTrackingService';
+import TTSControls from './TTSControls';
+import { tokenizeCJKText, tokenizeHtml, needsCJKTokenization } from '../services/japaneseTokenizer';
+import { nagisaService } from '../services/nagisaService';
 
 interface SelectionState {
   indices: number[];
@@ -59,14 +62,58 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const saveProgressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // TTS 有声书状态
+  const [ttsParagraphIndex, setTtsParagraphIndex] = useState<number | null>(null);
+  // 自由文本选中查询
+  const [freeSelectionText, setFreeSelectionText] = useState<string | null>(null);
+  const [freeSelectionPopup, setFreeSelectionPopup] = useState<{ x: number; y: number } | null>(null);
   // 眼动追踪状态
   const [eyeTrackerExpanded, setEyeTrackerExpanded] = useState(false);
   const [eyeTrackingEnabled, setEyeTrackingEnabled] = useState(false);
   const [gazeData, setGazeData] = useState<GazeData | null>(null);
   const [focusedLineY, setFocusedLineY] = useState<number | null>(null);
 
+  // TTS 段落切换回调：更新高亮并自动翻页
+  const handleTTSParagraphChange = useCallback((paragraphIndex: number | null) => {
+    setTtsParagraphIndex(paragraphIndex);
+    if (paragraphIndex === null) return;
+    // 计算该段落所在的页码
+    let wordAcc = 0;
+    for (let i = 0; i < paragraphs.length; i++) {
+      if (i === paragraphIndex) {
+        const targetPage = Math.floor(wordAcc / WORDS_PER_PAGE);
+        if (targetPage !== currentPageIndex) {
+          setCurrentPageIndex(targetPage);
+          if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        }
+        break;
+      }
+      wordAcc += paragraphs[i].length;
+    }
+  }, [paragraphs, currentPageIndex, WORDS_PER_PAGE]);
+
+  // 滚动或点击外部时关闭自由选中弹窗
+  useEffect(() => {
+    if (!freeSelectionPopup) return;
+    const dismiss = () => { setFreeSelectionText(null); setFreeSelectionPopup(null); };
+    const onScroll = () => dismiss();
+    const onClick = (e: MouseEvent) => {
+      const popup = document.querySelector('[data-free-selection-popup]');
+      if (popup && !popup.contains(e.target as Node)) dismiss();
+    };
+    const container = scrollRef.current;
+    container?.addEventListener('scroll', onScroll);
+    const timer = setTimeout(() => document.addEventListener('mousedown', onClick), 100);
+    return () => {
+      container?.removeEventListener('scroll', onScroll);
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', onClick);
+    };
+  }, [freeSelectionPopup]);
+
   // 自动启动眼动追踪
   useEffect(() => {
+    if (!settings.eyeTrackingEnabled) return;
     const autoStart = eyeTrackingService.getAutoStart();
     if (autoStart && !eyeTrackingEnabled) {
       const startGaze = async () => {
@@ -80,7 +127,7 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
       };
       startGaze();
     }
-  }, []);
+  }, [settings.eyeTrackingEnabled]);
   
   // 每10秒更新一次focused line
   useEffect(() => {
@@ -300,9 +347,8 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
             const words = text
               .replace(/([a-z])([A-Z])/g, '$1 $2')  // 修复单词连接
               .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')  // 修复大写单词连接
-              // 将标点符号与单词分离（保留标点作为独立token）
-              .replace(/([a-zA-ZÀ-ÿ\u4e00-\u9fa5]+)([,.!?;:"'«»¿¡()[\]{}])/g, '$1 $2')
-              .replace(/([,.!?;:"'«»¿¡()[\]{}])([a-zA-ZÀ-ÿ\u4e00-\u9fa5]+)/g, '$1 $2')
+              .replace(/([\p{L}\p{M}]+)([,.!?;:"'«»¿¡()[\]{}。、！？；：「」『』（）【】…―])/gu, '$1 $2')
+              .replace(/([,.!?;:"'«»¿¡()[\]{}。、！？；：「」『』（）【】…―])([\p{L}\p{M}]+)/gu, '$1 $2')
               .split(/\s+/)
               .filter(word => word.length > 0);
             
@@ -376,10 +422,80 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
     return pages[currentPageIndex];
   }, [pages, currentPageIndex]);
 
+  // CJK/scriptio continua 预处理：为无空格书写语言插入空格分词
+  const [processedContent, setProcessedContent] = useState('');
+
+  useEffect(() => {
+    if (!fullContent) { setProcessedContent(''); return; }
+    if (!needsCJKTokenization(language.id)) { setProcessedContent(fullContent); return; }
+
+    // budoux 即时 fallback
+    const budouxResult = fullContent.includes('<')
+      ? tokenizeHtml(fullContent, language.id)
+      : tokenizeCJKText(fullContent, language.id);
+    setProcessedContent(budouxResult);
+
+    // nagisa 异步覆盖（日语，更精确）
+    if (language.id === 'ja') {
+      let cancelled = false;
+      (async () => {
+        if (!await nagisaService.isAvailable()) return;
+        // Extract paragraph-level text blocks, not per-tag
+        let paragraphs: string[];
+        if (fullContent.includes('<')) {
+          const temp = document.createElement('div');
+          temp.innerHTML = fullContent;
+          // Remove ruby annotations (rt) to avoid double-rendering readings
+          temp.querySelectorAll('rt, rp').forEach(el => el.remove());
+          // Extract text from block-level boundaries
+          const blocks: string[] = [];
+          const blockTags = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'TR', 'BR']);
+          const walk = (node: Node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              const t = (node.textContent || '').trim();
+              if (t) {
+                if (blocks.length === 0) blocks.push('');
+                blocks[blocks.length - 1] += t;
+              }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as Element;
+              if (blockTags.has(el.tagName) && blocks[blocks.length - 1]?.trim()) {
+                blocks.push('');
+              }
+              for (const child of Array.from(node.childNodes)) walk(child);
+              if (blockTags.has(el.tagName) && blocks[blocks.length - 1]?.trim()) {
+                blocks.push('');
+              }
+            }
+          };
+          walk(temp);
+          paragraphs = blocks.map(b => b.trim()).filter(Boolean);
+        } else {
+          paragraphs = fullContent.split(/\n+/).filter(p => p.trim());
+        }
+
+        const tokenizedParagraphs: string[] = [];
+        for (const para of paragraphs) {
+          const tokens = await nagisaService.tokenize(para);
+          if (cancelled) return;
+          if (tokens.length > 0) {
+            tokenizedParagraphs.push(tokens.map(t => t.surface).join(' '));
+          } else {
+            tokenizedParagraphs.push(para);
+          }
+        }
+        if (!cancelled) {
+          setProcessedContent(tokenizedParagraphs.join('\n\n'));
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+  }, [fullContent, language.id]);
+
   // 当章节或内容改变时解析段落并重置页面索引
   useEffect(() => {
-    if (fullContent) {
-      const { paragraphs: parsedParagraphs, flatWords } = parseHtmlToParagraphs(fullContent);
+    if (processedContent) {
+      const { paragraphs: parsedParagraphs, flatWords } = parseHtmlToParagraphs(processedContent);
       setParagraphs(parsedParagraphs);
       setAllWords(flatWords);
       console.debug('[Reader] Parsed content:', {
@@ -395,7 +511,7 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
     setCurrentPageIndex(0);
     setIsLoadingMore(false);
     isScrollingRef.current = false;
-  }, [currentChapterIndex, fullContent, parseHtmlToParagraphs]);
+  }, [currentChapterIndex, processedContent, parseHtmlToParagraphs]);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
@@ -520,6 +636,8 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
         sentence: findSentence(wordIndex)
       });
       setIsLinkingMode(false);
+      setFreeSelectionText(null);
+      setFreeSelectionPopup(null);
     }
   };
 
@@ -637,11 +755,45 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
   };
 
   const selectedText = useMemo(() => {
+    if (freeSelectionText && selection && selection.indices.length === 0) {
+      return freeSelectionText.replace(/[^\p{L}\p{N}\s-]/gu, "").trim();
+    }
     if (!selection) return "";
     const text = selection.indices.map(i => allWords[i]).join(" ");
-    // 过滤掉标点符号，只保留字母和数字
     return text.replace(/[^\p{L}\p{N}\s-]/gu, "").trim();
-  }, [selection, allWords]);
+  }, [selection, allWords, freeSelectionText]);
+
+  // 自由文本选中处理
+  const handleTextSelection = useCallback((e: React.MouseEvent) => {
+    const sel = window.getSelection();
+    const selectedStr = sel?.toString().trim();
+    if (selectedStr && selectedStr.length > 0 && selectedStr.length < 100 && /\p{L}/u.test(selectedStr)) {
+      setFreeSelectionText(selectedStr);
+      setFreeSelectionPopup({ x: e.clientX, y: e.clientY });
+    } else {
+      setFreeSelectionText(null);
+      setFreeSelectionPopup(null);
+    }
+  }, []);
+
+  const handleFreeSelectionLookup = useCallback(() => {
+    if (!freeSelectionText) return;
+    const sel = window.getSelection();
+    let sentence = freeSelectionText;
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const parent = range.commonAncestorContainer;
+      const full = parent.textContent || '';
+      const start = Math.max(0, range.startOffset - 50);
+      const end = Math.min(full.length, range.endOffset + 50);
+      sentence = full.slice(start, end).trim();
+    }
+    setSelection({ indices: [], sentence });
+    setFreeSelectionPopup(null);
+    setAiSuggestion(null);
+    setAiError(null);
+    setIsAiLoading(false);
+  }, [freeSelectionText]);
 
   const handleAiSuggest = useCallback(async (targetWord: string, targetSentence: string) => {
     console.debug('[Reader] handleAiSuggest called:', {
@@ -943,67 +1095,68 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
 
   return (
     <>
-      <EyeTrackerPanel
-        isExpanded={eyeTrackerExpanded}
-        onToggle={() => setEyeTrackerExpanded(!eyeTrackerExpanded)}
-        theme={settings.theme}
-        onGazeUpdate={setGazeData}
-        onTrackingStarted={() => setEyeTrackingEnabled(true)}
-        onTrackingStopped={() => setEyeTrackingEnabled(false)}
-      />
-      
-      {/* 视线高亮指示器 & 行高亮 */}
-      {eyeTrackingEnabled && gazeData?.valid && scrollRef.current && focusedLineY !== null && (
-        (() => {
-          const containerRect = scrollRef.current.getBoundingClientRect();
-          const lineHeight = 32;
-          
-          return (
-            <>
-              {/* 行高亮 - 使用focusedLineY，每10秒更新一次 */}
-              <div
-                className="pointer-events-none z-[9998]"
-                style={{
-                  position: 'absolute',
-                  left: `${containerRect.left}px`,
-                  top: `${containerRect.top + scrollRef.current.scrollTop + focusedLineY}px`,
-                  width: `${containerRect.width}px`,
-                  height: `${lineHeight * 3}px`,
-                  backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                  borderLeft: '4px solid rgba(99, 102, 241, 0.8)',
-                }}
-              />
-              {/* 视线圆点 */}
-              <div
-                className="pointer-events-none z-[9999]"
-                style={{
-                  position: 'fixed',
-                  left: `${gazeData.x}px`,
-                  top: `${gazeData.y}px`,
-                  transform: 'translate(-50%, -50%)'
-                }}
-              >
-                <div style={{
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(99, 102, 241, 0.9)',
-                  boxShadow: '0 0 10px rgba(99, 102, 241, 0.8)'
-                }} />
-              </div>
-            </>
-          );
-        })()
+      {settings.eyeTrackingEnabled && (
+        <>
+          <EyeTrackerPanel
+            isExpanded={eyeTrackerExpanded}
+            onToggle={() => setEyeTrackerExpanded(!eyeTrackerExpanded)}
+            theme={settings.theme}
+            onGazeUpdate={setGazeData}
+            onTrackingStarted={() => setEyeTrackingEnabled(true)}
+            onTrackingStopped={() => setEyeTrackingEnabled(false)}
+          />
+
+          {eyeTrackingEnabled && gazeData?.valid && scrollRef.current && focusedLineY !== null && (
+            (() => {
+              const containerRect = scrollRef.current.getBoundingClientRect();
+              const lineHeight = 32;
+
+              return (
+                <>
+                  <div
+                    className="pointer-events-none z-[9998]"
+                    style={{
+                      position: 'absolute',
+                      left: `${containerRect.left}px`,
+                      top: `${containerRect.top + scrollRef.current.scrollTop + focusedLineY}px`,
+                      width: `${containerRect.width}px`,
+                      height: `${lineHeight * 3}px`,
+                      backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                      borderLeft: '4px solid rgba(99, 102, 241, 0.8)',
+                    }}
+                  />
+                  <div
+                    className="pointer-events-none z-[9999]"
+                    style={{
+                      position: 'fixed',
+                      left: `${gazeData.x}px`,
+                      top: `${gazeData.y}px`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(99, 102, 241, 0.9)',
+                      boxShadow: '0 0 10px rgba(99, 102, 241, 0.8)'
+                    }} />
+                  </div>
+                </>
+              );
+            })()
+          )}
+
+          <ReadingHeatmap
+            gazeData={gazeData}
+            isEnabled={eyeTrackingEnabled}
+            containerRef={scrollRef}
+            totalPages={pages.length}
+            currentPage={currentPageIndex}
+            theme={settings.theme}
+          />
+        </>
       )}
-      
-      <ReadingHeatmap
-        gazeData={gazeData}
-        isEnabled={eyeTrackingEnabled}
-        containerRef={scrollRef}
-        totalPages={pages.length}
-        currentPage={currentPageIndex}
-        theme={settings.theme}
-      />
       <div className={`flex-1 flex h-full overflow-hidden ${
        settings.theme === 'dark' ? 'bg-slate-900' :
        settings.theme === 'night' ? 'bg-indigo-950' :
@@ -1101,8 +1254,9 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
              </div>
             </header>
 
-            <div 
+            <div
               className="selection:bg-indigo-100 selection:text-indigo-900 space-y-6"
+              onMouseUp={handleTextSelection}
               style={{
                 fontSize: `${settings.fontSize}px`,
                 lineHeight: settings.lineHeight,
@@ -1124,12 +1278,13 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                  // 累积词索引计数器
                  let wordAccumulator = 0;
                  // 收集属于当前页面的段落
-                 const visibleParagraphs: { words: string[]; startIndex: number }[] = [];
-                 
-                 for (const paragraph of paragraphs) {
+                 const visibleParagraphs: { words: string[]; startIndex: number; globalParagraphIndex: number }[] = [];
+
+                 for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+                   const paragraph = paragraphs[pIdx];
                    const paragraphStart = wordAccumulator;
                    const paragraphEnd = wordAccumulator + paragraph.length;
-                   
+
                    // 检查段落是否与当前页面有交集
                    if (paragraphEnd > pageStartIndex && paragraphStart < pageEndIndex) {
                      // 计算交集部分
@@ -1137,20 +1292,25 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
                      const overlapEnd = Math.min(paragraph.length, pageEndIndex - paragraphStart);
                      const visibleWords = paragraph.slice(overlapStart, overlapEnd);
                      const startIndex = paragraphStart + overlapStart;
-                     
+
                      if (visibleWords.length > 0) {
                        visibleParagraphs.push({
                          words: visibleWords,
-                         startIndex
+                         startIndex,
+                         globalParagraphIndex: pIdx
                        });
                      }
                    }
-                   
+
                    wordAccumulator += paragraph.length;
                  }
                  
                   return visibleParagraphs.map((para, paraIdx) => (
-                    <p key={paraIdx} className="mb-6 last:mb-0">
+                    <p key={paraIdx} className={`mb-6 last:mb-0 transition-colors duration-300 ${
+                      ttsParagraphIndex === para.globalParagraphIndex
+                        ? 'bg-indigo-100/60 border-l-4 border-indigo-400 pl-4 -ml-4 rounded-r-lg dark:bg-indigo-900/30'
+                        : ''
+                    }`}>
                        {para.words.map((word, wordIdx) => {
                         const globalWordIndex = para.startIndex + wordIdx;
                         const wordDetected = isWord(word);
@@ -1282,6 +1442,39 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
             onMouseDown={startResizing}
           />
 
+        {/* 自由选中查询弹窗 */}
+        {freeSelectionPopup && freeSelectionText && (
+          <div
+            data-free-selection-popup
+            className={`fixed z-50 border rounded-xl shadow-xl px-3 py-2 flex items-center gap-2 ${
+              settings.theme === 'dark' ? 'bg-slate-800 border-slate-600 text-slate-200' :
+              settings.theme === 'night' ? 'bg-indigo-900 border-indigo-700 text-indigo-200' :
+              settings.theme === 'contrast' ? 'bg-black border-gray-600 text-white' :
+              settings.theme === 'sepia' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+              settings.theme === 'paper' ? 'bg-stone-50 border-stone-200 text-stone-800' :
+              'bg-white border-slate-200 text-slate-800'
+            }`}
+            style={{
+              left: `${Math.min(freeSelectionPopup.x, window.innerWidth - 250)}px`,
+              top: `${Math.max(10, freeSelectionPopup.y - 45)}px`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <button
+              onClick={handleFreeSelectionLookup}
+              className="text-sm font-medium text-indigo-500 hover:text-indigo-600 whitespace-nowrap"
+            >
+              Look up: &ldquo;{freeSelectionText.length > 20 ? freeSelectionText.slice(0, 20) + '...' : freeSelectionText}&rdquo;
+            </button>
+            <button
+              onClick={() => { setFreeSelectionText(null); setFreeSelectionPopup(null); }}
+              className="text-slate-400 hover:text-slate-600 ml-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* 浮动翻页控件 */}
         <div className={`fixed bottom-8 z-30 flex items-center gap-3 backdrop-blur-sm border rounded-2xl px-4 py-3 shadow-xl ${
           settings.theme === 'dark' ? 'bg-slate-800/90 border-slate-700 shadow-slate-900' :
@@ -1292,6 +1485,13 @@ const Reader: React.FC<ReaderProps> = ({ text, terms, onUpdateTerm, onDeleteTerm
           'bg-white/90 border-slate-200 shadow-slate-200'
         }`}
              style={{ right: `calc(${sidebarContentWidth}px + 2rem)` }}>
+          {settings.ttsEnabled && (
+            <TTSControls
+              paragraphs={paragraphs}
+              theme={settings.theme}
+              onParagraphChange={handleTTSParagraphChange}
+            />
+          )}
           <button
             onClick={() => {
               if (currentPageIndex > 0) {

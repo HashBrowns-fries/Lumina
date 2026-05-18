@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Database, HardDrive, Info } from 'lucide-react';
 import { UserSettings } from '../services/dataModels';
-import { invoke } from '@tauri-apps/api/core';
 
 interface Dictionary {
   code: string;
@@ -33,24 +32,23 @@ const DictionarySettings: React.FC<DictionarySettingsProps> = ({ settings }) => 
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('[DictionarySettings] Calling get_available_languages...');
-      const result = await invoke('get_available_languages');
-      
-      console.log('[DictionarySettings] Raw result from invoke:', result);
-      
-      if (result && typeof result === 'object') {
-        const langs = Array.isArray(result) ? result : (result as any).languages || [];
-        console.log('[DictionarySettings] Parsed languages:', langs);
-        setDictionaries(langs);
+
+      const res = await fetch('http://localhost:3011/api/dictionary/installed');
+      if (res.ok) {
+        const installed = await res.json();
+        setDictionaries(installed.map((d: any) => ({
+          code: d.code,
+          name: d.name,
+          hasLocal: true,
+          wordCount: d.word_count || 0,
+          senseCount: d.sense_count || 0,
+          formCount: d.form_count || 0,
+        })));
       } else {
-        console.warn('[DictionarySettings] Unexpected result format:', result);
         setDictionaries([]);
       }
-    } catch (err: any) {
-      console.error('[DictionarySettings] Failed to load dictionaries:', err);
-      const errorMsg = err.message || err.toString() || 'Failed to load dictionaries';
-      setError(`Failed to load dictionaries: ${errorMsg}`);
+    } catch {
+      setError('Dictionary API unavailable. Ensure the service is running on port 3011.');
       setDictionaries([]);
     } finally {
       setLoading(false);
@@ -115,16 +113,10 @@ const DictionarySettings: React.FC<DictionarySettingsProps> = ({ settings }) => 
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {dict.hasLocal ? (
-                    <span className="flex items-center gap-1 text-xs text-emerald-500">
-                      <HardDrive className="w-3 h-3" />
-                      Local
-                    </span>
-                  ) : (
-                    <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      Not installed
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1 text-xs text-emerald-500">
+                    <HardDrive className="w-3 h-3" />
+                    Local
+                  </span>
                 </div>
               </div>
             ))}

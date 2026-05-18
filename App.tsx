@@ -50,6 +50,7 @@ const AISettings = lazy(() => import('./components/AISettings'));
 const DictionarySettings = lazy(() => import('./components/DictionarySettings'));
 const DictionaryDownloadSettings = lazy(() => import('./components/DictionaryDownloadSettings'));
 const AppearanceSettings = lazy(() => import('./components/AppearanceSettings'));
+const TTSSettings = lazy(() => import('./components/TTSSettings'));
 const UpdateSettings = lazy(() => import('./components/UpdateSettings'));
 
 // Get default values from environment variables
@@ -780,10 +781,15 @@ const App = () => {
                  onUpdate={handleUpdateSettings}
                />
                
-                <AISettings 
+                <AISettings
                   aiConfig={settings.aiConfig || DEFAULT_AI_CONFIG}
                   onUpdate={handleUpdateAIConfig}
                   settings={settings}
+                />
+
+                <TTSSettings
+                  settings={settings}
+                  onUpdate={handleUpdateSettings}
                 />
               
                 {/* Sync Settings */}

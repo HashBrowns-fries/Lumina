@@ -87,6 +87,17 @@ fn find_base_path() -> PathBuf {
     }
 
     let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // In dev mode CWD is src-tauri/, check parent (project root)
+    if current_dir.join("scripts").exists() {
+        return current_dir;
+    }
+    let parent = current_dir.parent().unwrap_or(&current_dir).to_path_buf();
+    if parent.join("scripts").exists() {
+        write_log(&format!("使用项目根目录: {:?}", parent));
+        return parent;
+    }
+
     write_log(&format!("回退到当前目录: {:?}", current_dir));
     current_dir
 }
@@ -94,69 +105,72 @@ fn find_base_path() -> PathBuf {
 #[tauri::command]
 fn start_backend_services() -> Result<String, String> {
     let base_path = find_base_path();
-    let python_script = base_path.join("scripts").join("enhanced_sanskrit_api.py");
+    let scripts_dir = base_path.join("scripts");
 
     write_log("========== 后端服务启动 ==========");
     write_log(&format!("基础路径：{:?}", base_path));
-    write_log(&format!("Python 脚本：{:?}", python_script));
 
-    // Try uv first (modern Python package manager), then fallback to python
     let python_cmd = if Command::new("uv").arg("--version").output().is_ok() {
-        write_log("✓ uv detected (modern Python package manager)");
+        write_log("✓ uv detected");
         "uv"
-    } else if Command::new("python").arg("--version").output().is_ok() {
-        let output = Command::new("python").arg("--version").output().unwrap();
-        if output.status.success() {
-            let version = String::from_utf8_lossy(&output.stdout);
-            write_log(&format!("✓ Python detected: {}", version.trim()));
-        }
+    } else if Command::new("python").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+        write_log("✓ python detected");
         "python"
-    } else if Command::new("python3").arg("--version").output().is_ok() {
-        let output = Command::new("python3").arg("--version").output().unwrap();
-        if output.status.success() {
-            let version = String::from_utf8_lossy(&output.stdout);
-            write_log(&format!("✓ Python3 detected: {}", version.trim()));
-        }
+    } else if Command::new("python3").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+        write_log("✓ python3 detected");
         "python3"
     } else {
-        write_log("✗ No Python interpreter found (tried: uv, python, python3)");
-        write_log("⚠ Please install Python from https://python.org/ or https://astral.sh/uv");
+        write_log("✗ No Python interpreter found");
         return Err("Python not found".to_string());
     };
 
-    if python_script.exists() {
-        let child = Command::new(python_cmd)
-            .arg(&python_script)
-            .current_dir(base_path.join("scripts"))
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("Failed to start Python");
+    let python_services = [
+        ("enhanced_sanskrit_api.py", "Sanskrit API (3008)"),
+        ("dictionary_download_api.py", "Dictionary API (3011)"),
+        ("nagisa_api.py", "Nagisa Tokenizer (3010)"),
+    ];
 
-        write_log(&format!("✓ Python service started (PID: {})", child.id()));
+    for (script_name, label) in &python_services {
+        let script_path = scripts_dir.join(script_name);
+        if script_path.exists() {
+            let mut cmd = Command::new(python_cmd);
+            if python_cmd == "uv" {
+                cmd.arg("run").arg("python");
+            }
+            let spawn_result = cmd
+                .arg(&script_path)
+                .current_dir(&scripts_dir)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn();
 
-        std::thread::spawn(move || {
-            if let Ok(output) = child.wait_with_output() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if !stdout.is_empty() {
-                    for line in stdout.lines() {
-                        write_log(&format!("[python out] {}", line));
-                    }
+            match spawn_result {
+                Ok(child) => {
+                    write_log(&format!("✓ {} started (PID: {})", label, child.id()));
+                    let label_owned = label.to_string();
+                    std::thread::spawn(move || {
+                        if let Ok(output) = child.wait_with_output() {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            for line in stdout.lines() {
+                                write_log(&format!("[{}] {}", label_owned, line));
+                            }
+                            for line in stderr.lines() {
+                                write_log(&format!("[{} err] {}", label_owned, line));
+                            }
+                        }
+                    });
                 }
-                if !stderr.is_empty() {
-                    for line in stderr.lines() {
-                        write_log(&format!("[python err] {}", line));
-                    }
+                Err(e) => {
+                    write_log(&format!("✗ Failed to start {}: {}", label, e));
                 }
             }
-        });
-    } else {
-        write_log("⚠ Python script not found, Sanskrit API will be unavailable");
+        } else {
+            write_log(&format!("⚠ {} not found, skipping", label));
+        }
     }
 
     write_log("========== 后端服务启动完成 ==========");
-
     Ok("服务已启动".to_string())
 }
 
@@ -357,6 +371,7 @@ fn main() {
             get_dictionary_suggestions,
             batch_query_dictionary,
             upload_dictionary_file,
+            download_dictionary,
             rescan_dictionary,
             remove_dictionary,
             delete_dictionary_file,

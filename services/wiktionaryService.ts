@@ -1,7 +1,5 @@
 import { Language } from '../types';
 import { sqliteDictionaryService } from './sqliteDictionaryService.ts';
-import { browserDictionaryService } from './browserDictionaryService.ts';
-import { invoke } from '@tauri-apps/api/core';
 
 export interface WiktionaryEntry {
   word: string;
@@ -58,98 +56,6 @@ function setToCache(word: string, language: Language, response: WiktionaryRespon
   queryCache.set(getCacheKey(word, language), { response, timestamp: Date.now() });
 }
 
-async function queryTauriDictionary(word: string, language: Language): Promise<WiktionaryResponse> {
-  try {
-    console.log('[WiktionaryService] Querying Tauri dictionary for:', word, language.id);
-    const result: any = await invoke('search_dictionary', { word, language: language.id });
-    
-    console.log('[WiktionaryService] Raw result from Tauri:', result);
-    
-    if (result.success && result.entries && result.entries.length > 0) {
-      const entries = result.entries.map((entry: any) => {
-        // 解析 inflectionAnalysis
-        let inflectionAnalysis = null;
-        let hasInflections = false;
-        
-        if (entry.inflections && Array.isArray(entry.inflections)) {
-          inflectionAnalysis = {
-            inflections: entry.inflections.map((inf: any) => ({
-              form: inf.form,
-              tags: inf.tags ? JSON.parse(inf.tags) : [],
-              normalized_form: inf.normalized_form
-            }))
-          };
-          hasInflections = true;
-        }
-        
-        // 确定 entryType
-        let entryType = 'normal';
-        if (entry.root_form) {
-          // 这个条目是原形（被查询词的 lemma）
-          entryType = 'root';
-        }
-        
-        console.log('[WiktionaryService] Processing entry:', {
-          word: entry.text,
-          root_form: entry.root_form,
-          entryType,
-          inflectionForms: entry.inflections
-        });
-        
-        return {
-          word: entry.text,
-          language: entry.language,
-          partOfSpeech: entry.grammar || null,
-          definitions: entry.definition ? [entry.definition] : [],
-          translations: [],
-          etymology: entry.etymology || null,
-          pronunciation: null,
-          examples: [],
-          synonyms: [],
-          antonyms: [],
-          isInflection: !!entry.root_form,
-          inflectionForm: entry.root_form ? entry.text : null,
-          rootWord: entry.root_form || null,
-          inflectionTags: entry.inflections?.[0]?.tags || null,
-          rootEntry: entry.root_form ? {
-            word: entry.root_form,
-            definitions: entry.definition ? [entry.definition] : []
-          } : null,
-          entryType,
-          normalizedWord: entry.root_form || null,
-          inflectionAnalysis,
-          hasInflections,
-          variantOf: null,
-          selfInflectionAnalysis: null,
-          inflectionForms: entry.inflections?.map((inf: any) => {
-            let parsedTags = inf.tags;
-            if (typeof inf.tags === 'string' && inf.tags.startsWith('[')) {
-              try {
-                parsedTags = JSON.parse(inf.tags).join(', ');
-              } catch (e) {
-                parsedTags = inf.tags;
-              }
-            }
-            return {
-              form: inf.form,
-              tags: parsedTags,
-              normalizedForm: inf.normalized_form
-            };
-          })
-        };
-      });
-      
-      console.log('[WiktionaryService] Processed entries:', entries.length);
-      return { success: true, entries };
-    }
-    
-    return { success: true, entries: [], error: 'Word not found in dictionary' };
-  } catch (error) {
-    console.debug('[WiktionaryService] Tauri query failed:', error);
-    throw error;
-  }
-}
-
 export const queryWiktionary = async (
   word: string,
   language: Language
@@ -158,23 +64,14 @@ export const queryWiktionary = async (
   if (cached) return cached;
 
   try {
-    if (typeof window === 'undefined') {
-      const result = await sqliteDictionaryService.queryDictionary(word, language);
-      if (result.success && result.entries.length > 0) {
-        setToCache(word, language, result);
-        return result;
-      }
-      return { success: true, entries: [], error: 'Word not found' };
-    } else {
-      const result = await queryTauriDictionary(word, language);
-      if (result.success && result.entries.length > 0) {
-        setToCache(word, language, result);
-        return result;
-      }
-      const notFound = { success: true, entries: [], error: 'Word not found in dictionary' };
-      setToCache(word, language, notFound);
-      return notFound;
+    const result = await sqliteDictionaryService.queryDictionary(word, language);
+    if (result.success && result.entries.length > 0) {
+      setToCache(word, language, result);
+      return result;
     }
+    const notFound = { success: true, entries: [], error: 'Word not found in dictionary' };
+    setToCache(word, language, notFound);
+    return notFound;
   } catch (error) {
     console.error('[WiktionaryService] Error:', error);
     return { success: false, entries: [], error: error instanceof Error ? error.message : 'Unknown error' };
@@ -186,14 +83,7 @@ export const getWiktionaryUrl = async (word: string, language: Language): Promis
 };
 
 export const testWiktionaryConnection = async (): Promise<boolean> => {
-  try {
-    if (typeof window === 'undefined') {
-      return await sqliteDictionaryService.testConnection();
-    }
-    return true;
-  } catch {
-    return false;
-  }
+  return sqliteDictionaryService.testConnection();
 };
 
 export const getDictionaryStats = async (languageCode: string): Promise<{
@@ -201,15 +91,8 @@ export const getDictionaryStats = async (languageCode: string): Promise<{
   isLocal: boolean;
 }> => {
   try {
-    if (typeof window === 'undefined') {
-      const count = await sqliteDictionaryService.getWordCount(languageCode);
-      return { wordCount: count, isLocal: count > 0 };
-    }
-    const result: any = await invoke('get_dictionary_stats', { language: languageCode });
-    return {
-      wordCount: result.success && result.stats ? result.stats.wordCount : 0,
-      isLocal: result.success
-    };
+    const count = await sqliteDictionaryService.getWordCount(languageCode);
+    return { wordCount: count, isLocal: count > 0 };
   } catch {
     return { wordCount: 0, isLocal: false };
   }

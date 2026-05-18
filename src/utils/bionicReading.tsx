@@ -39,6 +39,9 @@ export function renderBionicWord(
 
 export function isWord(token: string): boolean {
   const trimmed = token.trim();
-  if (!trimmed || trimmed.length < 2 || trimmed.length > 100) return false;
-  return /^\p{L}+$/u.test(trimmed);
+  if (!trimmed || trimmed.length > 100) return false;
+  if (trimmed.length < 2) {
+    return /[一-鿿㐀-䶿぀-ゟ゠-ヿ가-힯ऀ-ॿঀ-৿਀-੿઀-૿଀-୿஀-௿ఀ-౿ಀ-೿ഀ-ൿ฀-๿຀-໿က-႟ក-៿]/.test(trimmed);
+  }
+  return /^\p{L}[\p{L}\p{M}]*$/u.test(trimmed);
 }

@@ -151,6 +151,10 @@ export const UserSettingsSchema = z.object({
   bionicReadingEnabled: z.boolean().default(false),
   bionicFixation: z.number().min(0.3).max(0.7).default(0.5),
   bionicSaccadeInterval: z.number().min(1).max(5).default(1),
+  eyeTrackingEnabled: z.boolean().default(false),
+  ttsEnabled: z.boolean().default(false),
+  ttsVoiceStyle: z.string().default(''),
+  ttsAutoAdvance: z.boolean().default(true),
   aiConfig: AIConfigSchema.optional(),
   createdAt: z.number().default(() => Date.now()),
   updatedAt: z.number().default(() => Date.now())

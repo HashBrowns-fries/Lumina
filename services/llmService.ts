@@ -230,6 +230,7 @@ RETURN JSON with the following structure:
       config.provider === 'llama-cpp' ? 'http://localhost:8080/v1' :
       config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' :
       config.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' :
+      config.provider === 'minimax' ? 'https://api.minimax.chat/v1' :
       'https://dashscope.aliyuncs.com/compatible-mode/v1'
     );
 
@@ -237,6 +238,7 @@ RETURN JSON with the following structure:
                       config.provider === 'aliyun' ? process.env.ALIYUN_API_KEY :
                       config.provider === 'qwen' ? process.env.QWEN_API_KEY :
                       config.provider === 'ollama' ? process.env.OLLAMA_API_KEY || '' :
+                      config.provider === 'minimax' ? process.env.MINIMAX_API_KEY :
                       process.env.API_KEY;
     
     const apiKey = config.apiKeys?.[config.provider] || envApiKey;
@@ -557,6 +559,7 @@ Return JSON.`;
       config.provider === 'ollama' ? 'http://localhost:11434/v1' :
       config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' :
       config.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' :
+      config.provider === 'minimax' ? 'https://api.minimax.chat/v1' :
       'https://dashscope.aliyuncs.com/compatible-mode/v1'
     );
     
@@ -566,6 +569,7 @@ Return JSON.`;
                       config.provider === 'aliyun' ? process.env.ALIYUN_API_KEY :
                       config.provider === 'qwen' ? process.env.QWEN_API_KEY :
                       config.provider === 'ollama' ? process.env.OLLAMA_API_KEY || '' :
+                      config.provider === 'minimax' ? process.env.MINIMAX_API_KEY :
                       process.env.API_KEY;
     
     const apiKey = config.apiKeys?.[config.provider] || envApiKey;

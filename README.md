@@ -5,7 +5,7 @@
 > A modern desktop application for language learning with intelligent dictionary, morphology analysis, and spaced repetition system  
 > Powered by Tauri 2.0 + Rust backend
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-green.svg)
 ![Backend](https://img.shields.io/badge/backend-Rust%20%2B%20Tauri-orange.svg)
 
@@ -36,7 +36,7 @@ Download the latest installer from:
 - **Windows 10/11** (WebView2 required, pre-installed on most systems)
 - **macOS 10.15+**
 - **Linux**: WebKit2GTK required
-- **Python 3.8+** (Optional, for Sanskrit API)
+- **Python 3.8+** (Optional, for Sanskrit API / Japanese tokenizer / Dictionary download)
 
 ---
 
@@ -51,11 +51,18 @@ Download the latest installer from:
 - **Precise Queries**: Exact match only, no fuzzy matching
 - **Double-Click to Save**: Quickly save words to vocabulary with double-click (toggle in Settings)
 
+### 🇯🇵 Japanese Language Support
+
+- **Dedicated Display**: Japanese-specific dictionary card with readings, verb type, and conjugation tables
+- **Furigana Readings**: 4-layer reading extraction (kana forms → romanization conversion → definition parsing)
+- **Conjugation Table**: 3-column display (漢字 / かな / Romaji) with grouped verb forms
+- **nagisa Tokenizer**: Japanese morphological analysis with POS tagging (auto-started on port 3010)
+
 ### 🤖 AI-Enhanced Learning
 
 - **Grammar Analysis**: AI-powered detailed grammatical breakdown
 - **Context-aware Translation**: Smart translation with suggestions
-- **Multiple AI Providers**: Google Gemini, DeepSeek, Alibaba Qwen, Ollama
+- **Multiple AI Providers**: Google Gemini, DeepSeek, Alibaba Qwen, OpenAI, MiniMax, Ollama
 
 ### 🔄 Spaced Repetition System
 
@@ -99,7 +106,10 @@ See [API_KEYS.md](API_KEYS.md) for detailed setup instructions.
 | DeepSeek | DeepSeek AI | ✅ |
 | Alibaba Qwen | Alibaba Cloud | ✅ |
 | OpenAI | GPT models | ✅ |
+| MiniMax | MiniMax AI (MiniMax-Text-01) | ✅ |
 | Ollama | Local deployment | ❌ (Free) |
+| llama.cpp | Local llama.cpp server | ❌ (Free) |
+| OpenAI Compatible | Any OpenAI-compatible API | Varies |
 
 ### Environment Variables
 
@@ -114,6 +124,7 @@ cp .env.example .env
 # - DEEPSEEK_API_KEY
 # - ALIYUN_API_KEY
 # - OPENAI_API_KEY (optional)
+# - MINIMAX_API_KEY (optional)
 # - OLLAMA_BASE_URL (for local AI)
 ```
 
@@ -161,7 +172,7 @@ Special thanks to **Dharma Mitra** (https://github.com/versed-in/dharmamitra_san
 
 - **Node.js 18+**: [Download](https://nodejs.org/)
 - **Rust** (for Tauri desktop app): [Install via rustup](https://rustup.rs/)
-- **Python 3.8+** (Optional, for Sanskrit API)
+- **Python 3.8+** (Optional, for Sanskrit API / Japanese tokenizer / Dictionary download)
   - Or use **uv** (modern Python package manager): [Install](https://astral.sh/uv)
 
 ### Local Development
@@ -183,7 +194,9 @@ npm run dev:sanskrit-api
 
 This launches:
 - Frontend: http://localhost:3000
-- Sanskrit API: http://localhost:3008 (optional)
+- Sanskrit API: http://localhost:3008 (auto-started by Tauri)
+- nagisa Japanese Tokenizer: http://localhost:3010 (auto-started by Tauri)
+- Dictionary Download API: http://localhost:3011 (auto-started by Tauri)
 
 ### Build Desktop App
 
@@ -218,10 +231,16 @@ Lumina/
 │   └── Cargo.toml          # Rust dependencies
 ├── src/                    # React + TypeScript frontend
 ├── components/             # React components
+│   ├── JapaneseWordDisplay.tsx  # Japanese-specific dictionary display
+│   └── ...
 ├── services/               # Frontend services
-├── scripts/                # Python scripts (Sanskrit API)
-│   ├── enhanced_sanskrit_api.py
-│   ├── sandhi_api.py
+│   ├── nagisaService.ts    # nagisa tokenizer client
+│   └── ...
+├── scripts/                # Python scripts (backend services)
+│   ├── enhanced_sanskrit_api.py  # Sanskrit API (port 3008)
+│   ├── nagisa_api.py             # Japanese tokenizer (port 3010)
+│   ├── dictionary_download_api.py # Dictionary download (port 3011)
+│   ├── convert_jsonl_to_sqlite.py # Kaikki JSONL → SQLite converter
 │   └── manage_dictionaries.py
 ├── dict/                   # Dictionary databases (Kaikki format)
 ├── data/                   # Static data files
@@ -287,9 +306,17 @@ Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 
 ### Port Conflicts
 
-If port 3000/3008 is in use:
+If port 3000/3008/3010/3011 is in use:
 - Windows: `netstat -ano | findstr "3000"`
 - Kill process or change port in config
+
+**Default ports:**
+| Port | Service |
+|------|---------|
+| 3000 | Vite dev server (frontend) |
+| 3008 | Sanskrit grammar API |
+| 3010 | nagisa Japanese tokenizer |
+| 3011 | Dictionary download API |
 
 ---
 
@@ -315,9 +342,18 @@ MIT License
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-### Latest: v1.5.0
+### Latest: v1.6.0
 
 **Major Changes:**
+- 🇯🇵 Japanese-specific dictionary display with readings, conjugation tables, and verb type detection
+- 🔤 nagisa Japanese tokenizer integration (morphological analysis + POS tagging)
+- 🤖 Added MiniMax AI provider support
+- 📚 Dictionary download via Python API (Kaikki.org English Wiktionary subsets for 20+ languages)
+- 🏗️ Unified backend architecture — all dictionary queries via HTTP API
+- 🐛 Fixed one-word-per-line rendering bug in Japanese reader
+
+### v1.5.0
+
 - ✨ Migrated to Tauri 2.0 + Rust backend (72% smaller bundle size)
 - 🚀 Added double-click to save words to vocabulary
 - 🔧 Fixed dictionary path detection for bundled builds
@@ -337,10 +373,4 @@ Issues and Pull Requests are welcome!
 
 ---
 
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
----
-
-**Lumina v1.5.0** - Built with Tauri 2.0 + Rust
+**Lumina v1.6.0** - Built with Tauri 2.0 + Rust

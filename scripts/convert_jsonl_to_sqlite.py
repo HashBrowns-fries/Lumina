@@ -305,7 +305,7 @@ def extract_pronunciation(entry):
     return ""
 
 
-def process_jsonl_file(jsonl_path, iso_code):
+def process_jsonl_file(jsonl_path, iso_code, output_path=None):
     """处理JSONL文件并导入数据库"""
     # 获取语言名称
     language_name = ISO_TO_LANGUAGE_NAME.get(iso_code)
@@ -313,11 +313,13 @@ def process_jsonl_file(jsonl_path, iso_code):
         print(f"警告: ISO代码 '{iso_code}' 未在映射表中找到，使用ISO代码作为语言名称")
         language_name = iso_code.capitalize()
 
-    # 创建输出目录
-    output_dir = Path(f"dict/{language_name}")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    db_path = output_dir / f"{iso_code}_dict.db"
+    if output_path:
+        db_path = Path(output_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        output_dir = Path(f"dict/{language_name}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        db_path = output_dir / f"{iso_code}_dict.db"
 
     print(f"创建数据库: {db_path}")
     conn = create_database_schema(db_path, iso_code)
@@ -490,35 +492,40 @@ def process_jsonl_file(jsonl_path, iso_code):
 
 
 def main():
-    if len(sys.argv) < 3:
+    import argparse
+
+    # Support both --input/--output flags and positional args
+    if '--input' in sys.argv or '--output' in sys.argv:
+        parser = argparse.ArgumentParser(description='Convert Kaikki JSONL to SQLite')
+        parser.add_argument('--input', required=True, help='Path to JSONL file')
+        parser.add_argument('--output', required=True, help='Output SQLite db path')
+        args = parser.parse_args()
+        jsonl_path = args.input
+        # Extract iso code from output filename (e.g. ja_dict.db -> ja)
+        db_name = os.path.basename(args.output)
+        iso_code = db_name.split('_')[0] if '_' in db_name else 'en'
+        output_path = args.output
+    elif len(sys.argv) >= 3:
+        jsonl_path = sys.argv[1]
+        iso_code = sys.argv[2].lower()
+        output_path = None
+    else:
         print("用法: python convert_jsonl_to_sqlite.py <jsonl文件> <ISO语言代码>")
-        print(
-            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-German.jsonl de"
-        )
-        print(
-            "示例: python convert_jsonl_to_sqlite.py kaikki.org-dictionary-Sanskrit.jsonl sa"
-        )
+        print("  或: python convert_jsonl_to_sqlite.py --input <jsonl> --output <db>")
         print("\n支持的ISO语言代码:")
         for code, name in sorted(ISO_TO_LANGUAGE_NAME.items()):
             print(f"  {code}: {name}")
         sys.exit(1)
-
-    jsonl_path = sys.argv[1]
-    iso_code = sys.argv[2].lower()
 
     if not os.path.exists(jsonl_path):
         print(f"错误: 文件不存在: {jsonl_path}")
         sys.exit(1)
 
     try:
-        db_path = process_jsonl_file(jsonl_path, iso_code)
+        db_path = process_jsonl_file(jsonl_path, iso_code, output_path)
         print(f"\n数据库已创建: {db_path}")
-        print(f"\n下一步:")
         language_name = ISO_TO_LANGUAGE_NAME.get(iso_code, iso_code.capitalize())
-        print(f"1. 数据库已保存到 dict/{language_name}/{iso_code}_dict.db")
-        print(f"2. 运行 extract-test-data.py 提取测试数据")
-        print(f"3. 启动应用测试词典功能")
-        print(f"\n提示: 使用ISO代码 '{iso_code}' 在应用中查询该语言")
+        print(f"提示: 使用ISO代码 '{iso_code}' 在应用中查询该语言")
 
     except Exception as e:
         print(f"处理过程中发生错误: {e}")

@@ -6,6 +6,8 @@ import { Term, TermStatus, Language, GeminiSuggestion, AIConfig, UserSettings } 
 import { X, Sparkles, Save, Trash2, ExternalLink, Hash, Quote, Check, Link as LinkIcon, Loader2, BookOpen, Book, FileText, AlertCircle, RefreshCw, Braces, ArrowRight, Globe, Filter, Volume2, Languages, Info, Quote as QuoteIcon, Layers, GitMerge, Puzzle } from 'lucide-react';
 import { queryWiktionary, WiktionaryEntry } from '../services/wiktionaryService.ts';
 import { sanskritService, AnalyzeResult, SanskritSegment, TransliterationResult } from '../services/enhancedSanskritService';
+import { nagisaService } from '../services/nagisaService';
+import JapaneseWordDisplay from './JapaneseWordDisplay';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const SHAKESPEARE = 'VWXYZABCDEFGHIJKLMNOPQRSTU';
@@ -70,6 +72,9 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
   // Wiktionary filter state
   const [posFilter, setPosFilter] = useState<string>('all');
   const [showInflections, setShowInflections] = useState(true);
+
+  // Japanese nagisa POS
+  const [nagisaPos, setNagisaPos] = useState<string | null>(null);
   
   // Theme color mapping
   const getThemeClasses = () => {
@@ -406,6 +411,19 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
       }
     };
   }, [word, language, existingTerm?.translation]);
+
+  // Fetch nagisa POS for Japanese words
+  useEffect(() => {
+    if (language?.id !== 'ja' || !word) {
+      setNagisaPos(null);
+      return;
+    }
+    let cancelled = false;
+    nagisaService.getPos(word).then(pos => {
+      if (!cancelled) setNagisaPos(pos);
+    });
+    return () => { cancelled = true; };
+  }, [word, language?.id]);
 
   // Form Reset Logic (disabled auto AI analysis)
   useEffect(() => {
@@ -1166,14 +1184,37 @@ const TermSidebar: React.FC<TermSidebarProps> = ({
         {/* Dictionary Content Display - AI loading state takes priority */}
         {(wiktionaryData || isLoadingWiktionary || aiSuggestion || aiError) && (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* PROMINENT WIKTIONARY SECTION */}
-            {processedWiktionaryData && processedWiktionaryData.length > 0 && (
+            {/* JAPANESE-SPECIFIC DICTIONARY DISPLAY */}
+            {language?.id === 'ja' && processedWiktionaryData && processedWiktionaryData.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className={`text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] flex items-center gap-2`}>
+                    <BookOpen size={12} /> Japanese Dictionary
+                  </label>
+                  <button
+                    onClick={() => queryWiktionary(word, language).then(r => { if(r.success) setWiktionaryData(r.entries); })}
+                    className={`text-[10px] font-bold ${theme.mutedText} hover:text-rose-500 uppercase tracking-widest flex items-center gap-1`}
+                  >
+                    <RefreshCw size={12} /> Refresh
+                  </button>
+                </div>
+                <JapaneseWordDisplay
+                  entries={processedWiktionaryData}
+                  word={word}
+                  theme={theme}
+                  nagisaPos={nagisaPos}
+                />
+              </div>
+            )}
+
+            {/* GENERIC WIKTIONARY SECTION (non-Japanese) */}
+            {language?.id !== 'ja' && processedWiktionaryData && processedWiktionaryData.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className={`text-[10px] font-black ${theme.accentText} uppercase tracking-[0.2em] flex items-center gap-2`}>
                     <BookOpen size={12} /> Dictionary Results
                   </label>
-                  <button 
+                  <button
                     onClick={() => queryWiktionary(word, language).then(r => { if(r.success) setWiktionaryData(r.entries); })}
                     className={`text-[10px] font-bold ${theme.mutedText} hover:${theme.accentText} uppercase tracking-widest flex items-center gap-1`}
                   >

@@ -18,7 +18,8 @@ const AI_PROVIDERS: { id: AIProvider; name: string; description: string; default
   { id: 'llama-cpp', name: 'llama.cpp', description: 'Local llama.cpp server', defaultModel: 'llama3.2' },
   { id: 'qwen', name: 'Qwen', description: 'Alibaba Qwen models', defaultModel: 'qwen-max' },
   { id: 'openai', name: 'OpenAI', description: 'OpenAI API (GPT-4, GPT-3.5)', defaultModel: 'gpt-4o-mini' },
-  { id: 'openai-compatible', name: 'OpenAI Compatible', description: 'Any OpenAI-compatible API', defaultModel: 'gpt-3.5-turbo' }
+  { id: 'openai-compatible', name: 'OpenAI Compatible', description: 'Any OpenAI-compatible API', defaultModel: 'gpt-3.5-turbo' },
+  { id: 'minimax', name: 'MiniMax', description: 'MiniMax AI (abab series)', defaultModel: 'MiniMax-Text-01' }
 ];
 
 const AISettings: React.FC<AISettingsProps> = ({ aiConfig, onUpdate, settings }) => {

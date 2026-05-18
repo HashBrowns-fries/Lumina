@@ -1,7 +1,9 @@
 // @ts-nocheck
-import React from 'react';
-import { Download, ExternalLink, HardDrive, Info, FileText, Database } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, ExternalLink, HardDrive, Info, FileText, Database, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { UserSettings } from '../services/dataModels';
+
+const DICT_API = 'http://localhost:3011';
 
 interface DictionaryDownloadSettingsProps {
   settings: UserSettings;
@@ -16,80 +18,175 @@ interface DictionaryFile {
   downloadUrl: string;
 }
 
+interface DownloadProgress {
+  stage: string;
+  progress: number;
+  message: string;
+  language_code: string;
+}
+
 const DICTIONARY_FILES: DictionaryFile[] = [
-  // English Edition
-  { lang: 'English', name: 'English', code: 'en', size: '21.4GB', compressedSize: '2.5GB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/en/raw-wiktextract-data.jsonl.gz' },
-  // Other Languages
-  { lang: 'Chinese', name: '中文', code: 'zh', size: '1.8GB', compressedSize: '211.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/zh/zh-extract.jsonl.gz' },
-  { lang: 'Czech', name: 'Čeština', code: 'cs', size: '262.7MB', compressedSize: '36.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/cs/cs-extract.jsonl.gz' },
-  { lang: 'Dutch', name: 'Nederlands', code: 'nl', size: '1.1GB', compressedSize: '119.6MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/nl/nl-extract.jsonl.gz' },
-  { lang: 'French', name: 'Français', code: 'fr', size: '6.2GB', compressedSize: '668.7MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/fr/fr-extract.jsonl.gz' },
-  { lang: 'German', name: 'Deutsch', code: 'de', size: '2.8GB', compressedSize: '282.2MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/de/de-extract.jsonl.gz' },
-  { lang: 'Greek', name: 'Ελληνικά', code: 'el', size: '1.4GB', compressedSize: '99.4MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/el/el-extract.jsonl.gz' },
-  { lang: 'Indonesian', name: 'Bahasa Indonesia', code: 'id', size: '28.5MB', compressedSize: '2.7MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/id/id-extract.jsonl.gz' },
-  { lang: 'Italian', name: 'Italiano', code: 'it', size: '406.5MB', compressedSize: '35.1MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/it/it-extract.jsonl.gz' },
-  { lang: 'Japanese', name: '日本語', code: 'ja', size: '385.0MB', compressedSize: '56.5MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/ja/ja-extract.jsonl.gz' },
-  { lang: 'Korean', name: '한국어', code: 'ko', size: '182.8MB', compressedSize: '24.6MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/ko/ko-extract.jsonl.gz' },
-  { lang: 'Kurdish', name: 'Kurdî', code: 'ku', size: '721.5MB', compressedSize: '60.7MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/ku/ku-extract.jsonl.gz' },
-  { lang: 'Malay', name: 'Bahasa Melayu', code: 'ms', size: '41.4MB', compressedSize: '5.6MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/ms/ms-extract.jsonl.gz' },
-  { lang: 'Polish', name: 'Polski', code: 'pl', size: '968.1MB', compressedSize: '123.0MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/pl/pl-extract.jsonl.gz' },
-  { lang: 'Portuguese', name: 'Português', code: 'pt', size: '327.9MB', compressedSize: '33.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/pt/pt-extract.jsonl.gz' },
-  { lang: 'Russian', name: 'Русский', code: 'ru', size: '2.3GB', compressedSize: '271.9MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/ru/ru-extract.jsonl.gz' },
-  { lang: 'Simple English', name: 'Simple English', code: 'simple', size: '35.2MB', compressedSize: '4.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/simple/simple-extract.jsonl.gz' },
-  { lang: 'Spanish', name: 'Español', code: 'es', size: '1.1GB', compressedSize: '95.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/es/es-extract.jsonl.gz' },
-  { lang: 'Thai', name: 'ไทย', code: 'th', size: '1.5GB', compressedSize: '66.3MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/th/th-extract.jsonl.gz' },
-  { lang: 'Turkish', name: 'Türkçe', code: 'tr', size: '641.9MB', compressedSize: '39.2MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/tr/tr-extract.jsonl.gz' },
-  { lang: 'Vietnamese', name: 'Tiếng Việt', code: 'vi', size: '251.2MB', compressedSize: '29.9MB', downloadUrl: 'https://kaikki.org/dictionary/raw/downloads/vi/vi-extract.jsonl.gz' },
+  { lang: 'Chinese', name: 'Chinese', code: 'zh', size: '~600MB', compressedSize: '143MB', downloadUrl: 'https://kaikki.org/dictionary/Chinese/kaikki.org-dictionary-Chinese.jsonl.gz' },
+  { lang: 'Czech', name: 'Czech', code: 'cs', size: '~80MB', compressedSize: '12MB', downloadUrl: 'https://kaikki.org/dictionary/Czech/kaikki.org-dictionary-Czech.jsonl.gz' },
+  { lang: 'Dutch', name: 'Dutch', code: 'nl', size: '~120MB', compressedSize: '18MB', downloadUrl: 'https://kaikki.org/dictionary/Dutch/kaikki.org-dictionary-Dutch.jsonl.gz' },
+  { lang: 'French', name: 'French', code: 'fr', size: '~200MB', compressedSize: '48MB', downloadUrl: 'https://kaikki.org/dictionary/French/kaikki.org-dictionary-French.jsonl.gz' },
+  { lang: 'German', name: 'German', code: 'de', size: '~350MB', compressedSize: '85MB', downloadUrl: 'https://kaikki.org/dictionary/German/kaikki.org-dictionary-German.jsonl.gz' },
+  { lang: 'Greek', name: 'Greek', code: 'el', size: '~60MB', compressedSize: '10MB', downloadUrl: 'https://kaikki.org/dictionary/Greek/kaikki.org-dictionary-Greek.jsonl.gz' },
+  { lang: 'Indonesian', name: 'Indonesian', code: 'id', size: '~30MB', compressedSize: '5MB', downloadUrl: 'https://kaikki.org/dictionary/Indonesian/kaikki.org-dictionary-Indonesian.jsonl.gz' },
+  { lang: 'Italian', name: 'Italian', code: 'it', size: '~150MB', compressedSize: '25MB', downloadUrl: 'https://kaikki.org/dictionary/Italian/kaikki.org-dictionary-Italian.jsonl.gz' },
+  { lang: 'Japanese', name: 'Japanese', code: 'ja', size: '~180MB', compressedSize: '43MB', downloadUrl: 'https://kaikki.org/dictionary/Japanese/kaikki.org-dictionary-Japanese.jsonl.gz' },
+  { lang: 'Korean', name: 'Korean', code: 'ko', size: '~80MB', compressedSize: '14MB', downloadUrl: 'https://kaikki.org/dictionary/Korean/kaikki.org-dictionary-Korean.jsonl.gz' },
+  { lang: 'Kurdish', name: 'Kurdish', code: 'ku', size: '~40MB', compressedSize: '7MB', downloadUrl: 'https://kaikki.org/dictionary/Kurdish/kaikki.org-dictionary-Kurdish.jsonl.gz' },
+  { lang: 'Malay', name: 'Malay', code: 'ms', size: '~20MB', compressedSize: '3MB', downloadUrl: 'https://kaikki.org/dictionary/Malay/kaikki.org-dictionary-Malay.jsonl.gz' },
+  { lang: 'Polish', name: 'Polish', code: 'pl', size: '~100MB', compressedSize: '17MB', downloadUrl: 'https://kaikki.org/dictionary/Polish/kaikki.org-dictionary-Polish.jsonl.gz' },
+  { lang: 'Portuguese', name: 'Portuguese', code: 'pt', size: '~120MB', compressedSize: '20MB', downloadUrl: 'https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl.gz' },
+  { lang: 'Russian', name: 'Russian', code: 'ru', size: '~200MB', compressedSize: '40MB', downloadUrl: 'https://kaikki.org/dictionary/Russian/kaikki.org-dictionary-Russian.jsonl.gz' },
+  { lang: 'Spanish', name: 'Spanish', code: 'es', size: '~200MB', compressedSize: '35MB', downloadUrl: 'https://kaikki.org/dictionary/Spanish/kaikki.org-dictionary-Spanish.jsonl.gz' },
+  { lang: 'Thai', name: 'Thai', code: 'th', size: '~40MB', compressedSize: '7MB', downloadUrl: 'https://kaikki.org/dictionary/Thai/kaikki.org-dictionary-Thai.jsonl.gz' },
+  { lang: 'Turkish', name: 'Turkish', code: 'tr', size: '~80MB', compressedSize: '14MB', downloadUrl: 'https://kaikki.org/dictionary/Turkish/kaikki.org-dictionary-Turkish.jsonl.gz' },
+  { lang: 'Vietnamese', name: 'Vietnamese', code: 'vi', size: '~60MB', compressedSize: '10MB', downloadUrl: 'https://kaikki.org/dictionary/Vietnamese/kaikki.org-dictionary-Vietnamese.jsonl.gz' },
 ];
 
 const DictionaryDownloadSettings: React.FC<DictionaryDownloadSettingsProps> = ({ settings }) => {
   const theme = settings?.theme || 'auto';
   const isDark = theme === 'dark' || theme === 'night';
 
-  const openExternal = (url: string) => {
-    window.open(url, '_blank');
+  const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
+  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const [completedCodes, setCompletedCodes] = useState<Set<string>>(new Set());
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${DICT_API}/api/dictionary/installed`)
+      .then(r => r.json())
+      .then((installed: any[]) => {
+        setCompletedCodes(new Set(installed.map(d => d.code)));
+      }).catch(() => {});
+  }, []);
+
+  const pollStatus = (code: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${DICT_API}/api/dictionary/status/${code}`);
+        const data = await res.json();
+        if (data.stage === 'idle' || !data.stage) return;
+        setProgress(data);
+        if (data.stage === 'done') {
+          setCompletedCodes(prev => new Set([...prev, code]));
+          setDownloadingCode(null);
+          setProgress(null);
+          clearInterval(interval);
+        } else if (data.stage === 'error') {
+          setErrorMessage(data.message);
+          setDownloadingCode(null);
+          setProgress(null);
+          clearInterval(interval);
+        }
+      } catch {
+        clearInterval(interval);
+        setErrorMessage('Lost connection to dictionary API');
+        setDownloadingCode(null);
+        setProgress(null);
+      }
+    }, 1000);
+  };
+
+  const handleDownload = async (dict: DictionaryFile) => {
+    setDownloadingCode(dict.code);
+    setErrorMessage(null);
+    setProgress({ stage: 'downloading', progress: 0, message: 'Starting...', language_code: dict.code });
+
+    try {
+      const res = await fetch(`${DICT_API}/api/dictionary/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: dict.downloadUrl, languageCode: dict.code, languageName: dict.lang }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      pollStatus(dict.code);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to start download. Is the dictionary API running?');
+      setDownloadingCode(null);
+      setProgress(null);
+    }
+  };
+
+  const getButtonContent = (dict: DictionaryFile) => {
+    if (completedCodes.has(dict.code)) {
+      return (
+        <span className="flex items-center gap-1.5 text-green-500">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Installed
+        </span>
+      );
+    }
+    if (downloadingCode === dict.code && progress) {
+      return (
+        <span className="flex items-center gap-1.5">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          {progress.stage === 'downloading' ? `${(progress.progress * 100).toFixed(0)}%` :
+           progress.stage === 'decompressing' ? 'Unzipping...' :
+           progress.stage === 'converting' ? 'Converting...' : 'Working...'}
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1.5">
+        <Download className="w-3.5 h-3.5" />
+        Install
+      </span>
+    );
   };
 
   return (
     <div className="space-y-4">
-      {/* Header Info */}
       <div className={`p-4 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
         <h3 className={`text-lg font-semibold mb-2 flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
           <Download className="w-5 h-5 text-indigo-500" />
           Download Dictionaries
         </h3>
         <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-          Download machine-readable dictionary data from Kaikki.org (Wiktionary extracts).
-          After downloading, place files in the <code className="px-1 py-0.5 rounded bg-opacity-20 bg-slate-500">dict/</code> directory.
+          Click "Install" to download, decompress, and install dictionaries automatically.
         </p>
       </div>
 
-      {/* Download Instructions */}
-      <div className={`p-4 rounded-lg ${isDark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'} border`}>
-        <div className="flex items-start gap-3">
-          <Info className={`w-5 h-5 mt-0.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
-          <div className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            <p className="font-semibold mb-1">How to use downloaded dictionaries</p>
-            <ol className="list-decimal list-inside space-y-1 mt-2">
-              <li>Click the download link for your desired language</li>
-              <li>Save the .gz file to your Lumina's <code className="px-1 py-0.5 rounded bg-opacity-20 bg-slate-500">dict/</code> directory</li>
-              <li>Decompress the file (use 7-Zip or similar)</li>
-              <li>Rename to <code className="px-1 py-0.5 rounded bg-opacity-20 bg-slate-500">[code]_dict.db</code> (e.g., <code className="px-1 py-0.5 rounded bg-opacity-20 bg-slate-500">de_dict.db</code>)</li>
-              <li>Restart Lumina to load the dictionary</li>
-            </ol>
+      {errorMessage && (
+        <div className={`p-3 rounded-lg flex items-start gap-2 ${isDark ? 'bg-red-900/20 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-700'} border`}>
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <span className="font-medium">Error: </span>{errorMessage}
+            <button onClick={() => setErrorMessage(null)} className="ml-2 underline text-xs">Dismiss</button>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Dictionary File List */}
+      {downloadingCode && progress && (
+        <div className={`p-3 rounded-lg ${isDark ? 'bg-indigo-900/20 border-indigo-800' : 'bg-indigo-50 border-indigo-200'} border`}>
+          <div className="flex items-center gap-2 mb-2">
+            <Loader2 className={`w-4 h-4 animate-spin ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+            <span className={`text-sm font-medium ${isDark ? 'text-indigo-300' : 'text-indigo-700'}`}>
+              {progress.message}
+            </span>
+          </div>
+          {progress.stage === 'downloading' && (
+            <div className={`w-full h-2 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                style={{ width: `${Math.max(2, progress.progress * 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className={`rounded-lg border ${isDark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}>
         <div className={`px-4 py-3 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
           <h4 className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
             Available Dictionaries ({DICTIONARY_FILES.length})
           </h4>
-          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            Data extracted from Wiktionary, updated 2026-05-01
-          </p>
         </div>
 
         <div className="divide-y divide-slate-200 dark:divide-slate-700 max-h-96 overflow-y-auto">
@@ -110,27 +207,26 @@ const DictionaryDownloadSettings: React.FC<DictionaryDownloadSettingsProps> = ({
                     </span>
                   </div>
                   <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {dict.compressedSize} compressed • {dict.size} original
+                    {dict.compressedSize} compressed
                   </div>
                 </div>
               </div>
               <button
-                onClick={() => openExternal(dict.downloadUrl)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                  isDark
-                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                onClick={() => handleDownload(dict)}
+                disabled={downloadingCode !== null}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  completedCodes.has(dict.code)
+                    ? isDark ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-700'
+                    : isDark ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 }`}
               >
-                <Download className="w-3.5 h-3.5" />
-                Download
+                {getButtonContent(dict)}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Source Link */}
       <div className={`p-4 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -140,7 +236,7 @@ const DictionaryDownloadSettings: React.FC<DictionaryDownloadSettingsProps> = ({
             </span>
           </div>
           <button
-            onClick={() => openExternal('https://kaikki.org/dictionary/rawdata.html')}
+            onClick={() => window.open('https://kaikki.org/dictionary/rawdata.html', '_blank')}
             className={`flex items-center gap-1.5 text-xs font-medium ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'}`}
           >
             Visit Kaikki.org

@@ -1,5 +1,44 @@
 # Lumina - Changelog
 
+## v1.6.0 (2026-05-18) - Japanese Support & MiniMax AI
+
+### Added
+- **Japanese-specific dictionary display** (`JapaneseWordDisplay.tsx`): dedicated card with furigana-style readings, 3-column conjugation table (kanji/kana/romaji), verb type detection (ichidan/godan/irregular), examples, etymology, and nagisa POS badge
+- **nagisa Japanese tokenizer** integration: morphological analysis and POS tagging via Python service (port 3010), auto-started by Tauri
+- **4-layer reading extraction** for Japanese words: terminative kana, hiragana/historical tags, romanization-to-hiragana conversion, definition parenthetical kana
+- **MiniMax AI provider**: OpenAI-compatible integration with `MiniMax-Text-01` default model
+- **Dictionary download API** (`dictionary_download_api.py`): download Kaikki.org English Wiktionary subsets for 20+ languages via HTTP API (port 3011)
+- **Kaikki JSONL-to-SQLite converter** (`convert_jsonl_to_sqlite.py`): batch convert downloaded dictionary data
+- `nagisaService.ts` with `tokenize()` and `getPos()` methods
+
+### Changed
+- **Unified backend architecture**: all dictionary queries now go through HTTP API, removed `isTauri` branching
+- AI provider list expanded to 9: Gemini, DeepSeek, Qwen, OpenAI, Ollama, llama.cpp, OpenAI Compatible, MiniMax, Alibaba Cloud
+- Reader nagisa paragraph extraction uses proper DOM walking instead of regex tag stripping
+
+### Fixed
+- **One-word-per-line rendering** in Japanese reader: `<rt>`/`<rp>` tags were replaced with newlines, causing each word to appear on its own line
+- Proper block-level element detection for paragraph breaks
+
+---
+
+## v1.5.0 (2025-04-01) - Code Splitting & Performance
+
+### Added
+- Double-click to save words to vocabulary
+- uv (modern Python package manager) support
+- API keys configured via `.env` file
+- Code splitting and lazy loading (72% smaller initial bundle)
+
+### Changed
+- Improved floating window UI and save functionality
+- Enhanced dictionary query precision
+
+### Fixed
+- Dictionary path detection for bundled builds
+
+---
+
 ## v1.4.0 (2025-02-23) - Tauri 2.0 + Rust Backend
 
 ### 🔄 Major Architecture Changes

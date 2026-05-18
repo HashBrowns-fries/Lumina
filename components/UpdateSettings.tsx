@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { RefreshCw, Download, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { UserSettings } from '../services/dataModels';
 
-const CURRENT_VERSION = '1.3.1';
+const CURRENT_VERSION = __APP_VERSION__;
 const REPO_OWNER = 'HashBrowns-fries';
 const REPO_NAME = 'Lumina';
 

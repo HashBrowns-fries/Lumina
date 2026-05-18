@@ -80,18 +80,19 @@ fn get_dict_dir() -> PathBuf {
                 eprintln!("[DICT_DIR] ✗ Not found: {:?}", up_dict);
             }
 
-            // Check parent directory (for development: target/debug -> project root)
-            if let Some(parent) = exe_dir.parent() {
-                let parent_dict = parent.join("dict");
-                eprintln!("[DICT_DIR] Checking parent: {:?}", parent_dict);
-                if parent_dict.exists() {
-                    eprintln!(
-                        "[DICT_DIR] ✓ Found dict in parent directory: {:?}",
-                        parent_dict
-                    );
-                    return parent_dict;
+            // Walk up from exe to find dict/ (handles target/debug/.. chains)
+            let mut ancestor = exe_dir.to_path_buf();
+            for _ in 0..4 {
+                if let Some(parent) = ancestor.parent() {
+                    let d = parent.join("dict");
+                    eprintln!("[DICT_DIR] Checking ancestor: {:?}", d);
+                    if d.exists() {
+                        eprintln!("[DICT_DIR] ✓ Found dict: {:?}", d);
+                        return d;
+                    }
+                    ancestor = parent.to_path_buf();
                 } else {
-                    eprintln!("[DICT_DIR] ✗ Not found: {:?}", parent_dict);
+                    break;
                 }
             }
         } else {
@@ -101,22 +102,24 @@ fn get_dict_dir() -> PathBuf {
         eprintln!("[DICT_DIR] ✗ Could not get executable path");
     }
 
-    // Fallback to current directory
-    let current_dict = PathBuf::from("dict");
-    eprintln!(
-        "[DICT_DIR] Fallback to current directory: {:?}",
-        current_dict
-    );
-    if current_dict.exists() {
-        eprintln!(
-            "[DICT_DIR] ✓ Found dict in current directory: {:?}",
-            current_dict
-        );
-    } else {
-        eprintln!("[DICT_DIR] ✗ Not found in current directory either");
+    // Check CWD and parent (in tauri dev, CWD = src-tauri/)
+    if let Ok(cwd) = std::env::current_dir() {
+        let cwd_dict = cwd.join("dict");
+        if cwd_dict.exists() {
+            eprintln!("[DICT_DIR] ✓ Found dict in CWD: {:?}", cwd_dict);
+            return cwd_dict;
+        }
+        if let Some(parent) = cwd.parent() {
+            let parent_dict = parent.join("dict");
+            if parent_dict.exists() {
+                eprintln!("[DICT_DIR] ✓ Found dict in CWD parent: {:?}", parent_dict);
+                return parent_dict;
+            }
+        }
     }
 
-    current_dict
+    eprintln!("[DICT_DIR] ✗ Not found anywhere, using fallback 'dict'");
+    PathBuf::from("dict")
 }
 
 pub fn get_connection(lang_code: &str) -> Result<Connection, String> {

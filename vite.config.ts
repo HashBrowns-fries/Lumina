@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import pkg from './package.json';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -38,10 +39,12 @@ export default defineConfig(({ mode }) => {
         'process.env.QWEN_API_KEY': JSON.stringify(env.QWEN_API_KEY || ''),
         'process.env.OPENAI_API_KEY': JSON.stringify(env.OPENAI_API_KEY || ''),
         'process.env.OLLAMA_API_KEY': JSON.stringify(env.OLLAMA_API_KEY || ''),
+        'process.env.MINIMAX_API_KEY': JSON.stringify(env.MINIMAX_API_KEY || ''),
         'process.env.OLLAMA_BASE_URL': JSON.stringify(env.OLLAMA_BASE_URL || 'http://localhost:11434'),
         // Default provider and model
         'process.env.DEFAULT_AI_PROVIDER': JSON.stringify(env.DEFAULT_AI_PROVIDER || 'gemini'),
         'process.env.DEFAULT_AI_MODEL': JSON.stringify(env.DEFAULT_AI_MODEL || 'gemini-2.0-flash'),
+        '__APP_VERSION__': JSON.stringify(pkg.version),
       },
       resolve: {
         alias: {
